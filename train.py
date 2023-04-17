@@ -311,8 +311,8 @@ def train():
         if len(prediction.shape) == 2:
             prediction_fixed = np.expand_dims(prediction, axis=0)
             prediction = prediction_fixed
-        save_examples(data.detach().cpu().numpy().squeeze(), 
-                      target.detach().cpu().numpy().squeeze(), 
+        save_examples(data.detach().cpu().numpy(), 
+                      target.detach().cpu().numpy(), 
                       prediction, 'Training', epoch, data_index, filepath)
 
         with torch.no_grad():
