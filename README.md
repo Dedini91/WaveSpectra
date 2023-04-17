@@ -7,7 +7,7 @@
    <img src="assets/NearShore_example.jpg" alt="Raw near shore spectra" style="height: 200px; width:200px;"/>
 </p>
 
-This is a Pytorch implementation of an unsupervised image to image convolutional autoencoder, capable of accurately predicting near shore wave spectra from corresponding offshore spectra in the form of 64*64 spectrograms.
+This is a Pytorch implementation of an unsupervised image-to-image convolutional autoencoder, capable of accurately predicting near shore wave spectra from corresponding offshore spectra in the form of 64*64 spectrograms.
 
 The network passes normalised offshore (source) and near shore (target) spectra through a 9-layer convolutional autoencoder, which generates an image as its output using a sigmoid activation in the final layer. The l1 (MAE), l2 (MSE), and Huber losses are used to compare the network's output the with known target spectrograms. 
 
