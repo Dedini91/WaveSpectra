@@ -28,7 +28,7 @@ parser = argparse.ArgumentParser(description="Options for model evaluation")
 parser.add_argument("--verbose", action="store_true", default=False,
                     help="verbose output")
 parser.add_argument("--model_path", action="store", type=str, required=True,
-                    help="path to model and optimiser state_dict.pth files")
+                    help="path to model .pth file")
 parser.add_argument("--img_path", action="store", type=str, required=True,
                     help="path to source images for evaluation and inference")
 parser.add_argument("--target_path", action="store", type=str, required=True,
