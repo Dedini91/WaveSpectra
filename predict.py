@@ -26,7 +26,7 @@ warnings.filterwarnings('ignore', category=UserWarning, message='TypedStorage is
 parser = argparse.ArgumentParser(description="Options for inference")
 
 parser.add_argument("--model_path", action="store", type=str, required=True,
-                    help="path to model and optimiser state_dict.pth files")
+                    help="path to model .pth file")
 parser.add_argument("--img_path", action="store", type=str, required=True,
                     help="path to folder containing source images")
 parser.add_argument("--device", type=str, default='cuda', choices=['cuda', 'cpu'],
