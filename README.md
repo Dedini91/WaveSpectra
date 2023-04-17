@@ -84,7 +84,9 @@ python make_dataset.py --data path/to/data_folder
 
 Example:
 ```python
-python train.py -n exp_name -d "data/processed/" -b 1 -e 10 -o adamw -l l1 --reduction sum --lr 0.00003 --prototyping --verbose 
+python train.py -n exp_name -d "data/processed/" -b 1 -e 10 -o adamw -l l1 --reduction sum --lr 0.00003 --prototyping --verbose
+or in Colab:
+!python /content/gdrive/MyDrive/WaveSpectra_CAE/train.py ... ... ...
 ```
 * The model will default to using gpu where available, unless the `--device cpu` argument is explicitly passed.
 
