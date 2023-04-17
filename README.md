@@ -1,5 +1,4 @@
-# WaveSpectra_CAE
-Unsupervised convolutional autoencoder for image-to-image generation of wave spectra
+#Convolutional Autoencoder for Wave Spectra Prediction
 
 <img src="C:\Users\joeld\PycharmProjects\WaveSpectra_CAE\data\raw\Offshore\700.jpg" alt="Raw offshore spectra" style="height: 200px; width:200px;"/>
 <img src="C:\Users\joeld\PycharmProjects\WaveSpectra_CAE\data\interim\Offshore\00700.jpg" alt="Raw near shore spectra" style="height: 200px; width:200px;"/>

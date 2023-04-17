@@ -1,0 +1,10 @@
+Add support for:
+    - Entering custom image sizes (use transforms() or modify network layers)
+    - Resuming training from checkpoint/transfer learning
+    - SSIM could be an important metric, implement as a loss function
+
+- Isolate 5 best and 5 worst examples during evaluation
+    (If testing more than 10 images)
+
+- Account for different ranges for each source spectrogram?
+    - Need to find a way to normalise raw data based on changing colormap range..?
