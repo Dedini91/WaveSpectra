@@ -145,7 +145,7 @@ tensorboard --logdir="path/to/logs_folder/"
 Evaluates the performance of a trained model on previously unseen data (test set), giving an idea of how well it generalises.
 * Pass source images located in `--img_path "./path/to/image_folder"` and paired target images `--target_path "./path/to/targets_folder"` to evaluate model located at `--model_path "./results/exp_name/datetime/model/best_model.pth"`.
 ```python
-python evaluate.py --model_path "path/to/best_model.pth" --img_path "./path/to/image_folder" --target_path "./path/to/targets_folder" --verbose True
+python evaluate.py --model_path "path/to/best_model.pth" --img_path "./path/to/image_folder" --target_path "./path/to/targets_folder" --verbose
 ```
 Supported CLI arguments: **evaluate.py**
 ```python
