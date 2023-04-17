@@ -1,6 +1,6 @@
 #Convolutional Autoencoder for Wave Spectra Prediction
 
-<img src="C:\Users\joeld\PycharmProjects\WaveSpectra_CAE\data\raw\Offshore\700.jpg" alt="Raw offshore spectra" style="height: 200px; width:200px;"/>
+<img src="./assets/Offshore_example.jpg alt="Raw offshore spectra" style="height: 200px; width:200px;"/>
 <img src="C:\Users\joeld\PycharmProjects\WaveSpectra_CAE\data\interim\Offshore\00700.jpg" alt="Raw near shore spectra" style="height: 200px; width:200px;"/>
 <img src="C:\Users\joeld\PycharmProjects\WaveSpectra_CAE\data\interim\NearShore\00700.jpg" alt="Processed offshore spectra" style="height: 200px; width:200px;"/>
 <img src="C:\Users\joeld\PycharmProjects\WaveSpectra_CAE\data\raw\NearShore\700.jpg" alt="Processed near shore spectra" style="height: 200px; width:200px;"/>
