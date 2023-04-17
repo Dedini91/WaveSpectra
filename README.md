@@ -126,7 +126,7 @@ Supported CLI arguments: **train.py**
 
 #### **Logging with tensorboard**
 * Basic metrics are automatically logged to ***./results/exp_name/datetime/logs/***
-* View in tensorboard: Run the following in a separate terminal:
+* View in tensorboard: Run the following in a separate terminal on your local machine (download log folder from Colab to use):
 ```python
 tensorboard --logdir="path/to/logs_folder/"
 ```
