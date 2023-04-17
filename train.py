@@ -300,7 +300,7 @@ def train():
         if args['scheduler']:
             scheduler.step()
 
-        prediction = output.detach().numpy().squeeze()
+        prediction = output.detach().cpu().numpy().squeeze()
         train_path = (str(filepath) + "/predictions/" + "training/" + 'epoch_{}'.format(epoch + 1)).replace('\\', '/')
         val_path = (str(filepath) + "/predictions/" + "validation/" + 'epoch_{}'.format(epoch + 1)).replace('\\', '/')
         if not os.path.exists(train_path):
@@ -311,7 +311,9 @@ def train():
         if len(prediction.shape) == 2:
             prediction_fixed = np.expand_dims(prediction, axis=0)
             prediction = prediction_fixed
-        save_examples(data, target, prediction, 'Training', epoch, data_index, filepath)
+        save_examples(data.detach().cpu().numpy().squeeze(), 
+                      target.detach().cpu().numpy().squeeze(), 
+                      prediction, 'Training', epoch, data_index, filepath)
 
         with torch.no_grad():
             with tqdm(val_loader, unit="batch") as tepoch:
