@@ -1,9 +1,11 @@
 #Convolutional Autoencoder for Wave Spectra Prediction
 
-<img src="./assets/Offshore_example.jpg alt="Raw offshore spectra" style="height: 200px; width:200px;"/>
-<img src="C:\Users\joeld\PycharmProjects\WaveSpectra_CAE\data\interim\Offshore\00700.jpg" alt="Raw near shore spectra" style="height: 200px; width:200px;"/>
-<img src="C:\Users\joeld\PycharmProjects\WaveSpectra_CAE\data\interim\NearShore\00700.jpg" alt="Processed offshore spectra" style="height: 200px; width:200px;"/>
-<img src="C:\Users\joeld\PycharmProjects\WaveSpectra_CAE\data\raw\NearShore\700.jpg" alt="Processed near shore spectra" style="height: 200px; width:200px;"/>
+<p float="left">
+   <img src="assets/Offshore_example.jpg" alt="Raw offshore spectra" style="height: 200px; width:200px;"/>
+   <img src="assets/Offshore_proc.jpg" alt="Processed offshore spectra" style="height: 200px; width:200px;"/>
+   <img src="assets/NearShore_proc.jpg" alt="Processed near shore spectra" style="height: 200px; width:200px;"/>
+   <img src="assets/NearShore_example.jpg" alt="Raw near shore spectra" style="height: 200px; width:200px;"/>
+</p>
 
 This is a Pytorch implementation of an unsupervised image to image convolutional autoencoder, capable of accurately predicting near shore wave spectra from corresponding offshore spectra in the form of 64*64 spectrograms.
 
@@ -20,14 +22,14 @@ Arguments are passed when running the script from the command line (or using `!p
 * For booleans that are set to `False` by default, simply pass the flag with no argument to set to `True`
 
 
-##Usage:
-###1. **Download the repository & install requirements**
+## Usage:
+### 1. **Download the repository & install requirements**
    ```python
     git clone https://...
     pip install -r requirements.txt
    ```
 
-####1.5. Get raw data from .NETCDF files
+#### 1.5. Get raw data from .NETCDF files
 * Use ***"get_data.ipynb"*** to retrieve data and save spectrograms
   * Several thousand pairs of images is more than enough data, but use as much as time permits
   * Best to take small chunks of samples from throughout the ~85,000 total, for dataset diversity. 
@@ -78,7 +80,7 @@ Example:
 ```python
 python make_dataset.py --data path/to/data_folder
 ```
-###4. **Training**
+### 4. **Training**
 
 Example:
 ```python
@@ -135,9 +137,9 @@ tensorboard --logdir="path/to/logs_folder/"
 * Basic evaluation results, sorted by lowest l1 loss
 
 
-<img src="C:\Users\joeld\PycharmProjects\WaveSpectra_CAE\results\new_test\04-17_2219\metrics\losses.jpg" alt="Example loss plot" style="height: 300px; width;"/>
+<img src="assets/losses.jpg" alt="Example loss plot" style="height: 300px; width;"/>
 
-###5. **Evaluation**
+### 5. **Evaluation**
 Evaluates the performance of a trained model on previously unseen data (test set), giving an idea of how well it generalises.
 * Pass source images located in `--img_path "./path/to/image_folder"` and paired target images `--target_path "./path/to/targets_folder"` to evaluate model located at `--model_path "./results/exp_name/datetime/model/best_model.pth"`.
 ```python
@@ -159,11 +161,11 @@ Supported CLI arguments: **evaluate.py**
 ```
 Evaluation produces single and comparison images for each sample in the test set, with error maps turned on by default. Error maps display the per-pixel absolute error as calculated by various loss functions. Turning error maps off by passing `--errmaps` may improve training times. 
 
-<img src="C:\Users\joeld\PycharmProjects\WaveSpectra_CAE\results\new_test\04-17_2219\evaluation\04-18_0010\15000\15000_error.jpg" alt="Error map example" style="height: 400;"/>
+<img src="assets/error_map.jpg" alt="Error map example" style="height: 400;"/>
 
 Numerical results are also saved in .csv format ordered by lowest l1 error. These can be loaded into Excel or Python for inspection. 
 
-###6. **Inference**
+### 6. **Inference**
 Similarly, to perform inference (generate predictions) on a folder of images - *without corresponding targets*:
 ```python
 python predict.py --model_path "path/to/best_model.pth" --img_path "./path/to/image_folder"
