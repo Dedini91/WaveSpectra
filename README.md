@@ -35,7 +35,7 @@ Arguments are passed when running the script from the command line (or using `!p
   * Best to take small chunks of samples from throughout the ~85,000 total, for dataset diversity. 
 * Download these from Colab if training locally; place in the parent folder of your project
 
-###2. **Preprocess raw data and make dataset**
+### 2. **Preprocess raw data and make dataset**
 * **Ensure that raw images are located in ***./data*****
 
   * Resize images to 64*64 pixels; greyscale; normalised to [0 1]
@@ -80,7 +80,7 @@ Example:
 ```python
 python make_dataset.py --data path/to/data_folder
 ```
-### 4. **Training**
+### 3. **Training**
 
 Example:
 ```python
@@ -141,7 +141,7 @@ tensorboard --logdir="path/to/logs_folder/"
 
 <img src="assets/losses.jpg" alt="Example loss plot" style="height: 300px; width;"/>
 
-### 5. **Evaluation**
+### 4. **Evaluation**
 Evaluates the performance of a trained model on previously unseen data (test set), giving an idea of how well it generalises.
 * Pass source images located in `--img_path "./path/to/image_folder"` and paired target images `--target_path "./path/to/targets_folder"` to evaluate model located at `--model_path "./results/exp_name/datetime/model/best_model.pth"`.
 ```python
@@ -167,7 +167,7 @@ Evaluation produces single and comparison images for each sample in the test set
 
 Numerical results are also saved in .csv format ordered by lowest l1 error. These can be loaded into Excel or Python for inspection. 
 
-### 6. **Inference**
+### 5. **Inference**
 Similarly, to perform inference (generate predictions) on a folder of images - *without corresponding targets*:
 ```python
 python predict.py --model_path "path/to/best_model.pth" --img_path "./path/to/image_folder"
