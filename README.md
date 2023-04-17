@@ -18,24 +18,25 @@ Given a .NETCDF with raw offshore and corresponding near shore data:
 4. Evaluate network on unseen data/target pairs
 5. Perform inference (generate prediction spectrograms) on source images
 
+#### If using Google Colab, simply run the included scripts from the Walkthrough.ipynb notebook.
+
 Arguments are passed when running the script from the command line (or using `!python` in Colab)
 * For booleans that are set to `False` by default, simply pass the flag with no argument to set to `True`
 
 
-## Usage:
-### 1. **Download the repository & install requirements**
+## 1. **Download the repository & install requirements**
    ```
     git clone https://github.com/Dedini91/WaveSpectra_CAE.git
     pip install -r requirements.txt
    ```
 
-#### 1.5. Get raw data from .NETCDF files
+### 1.5. Get raw data from .NETCDF files
 * Use ***"get_data.ipynb"*** to retrieve data and save spectrograms
   * Several thousand pairs of images is more than enough data, but use as much as time permits
   * Best to take small chunks of samples from throughout the ~85,000 total, for dataset diversity. 
 * Download these from Colab if training locally; place in the parent folder of your project
 
-### 2. **Preprocess raw data and make dataset**
+## 2. **Preprocess raw data and make dataset**
 * **Ensure that raw images are located in ***./data*****
 
   * Resize images to 64*64 pixels; greyscale; normalised to [0 1]
@@ -80,7 +81,7 @@ Example:
 ```python
 python make_dataset.py --data path/to/data_folder
 ```
-### 3. **Training**
+## 3. **Training**
 
 Example:
 ```python
@@ -141,7 +142,7 @@ tensorboard --logdir="path/to/logs_folder/"
 
 <img src="assets/losses.jpg" alt="Example loss plot" style="height: 300px; width;"/>
 
-### 4. **Evaluation**
+## 4. **Evaluation**
 Evaluates the performance of a trained model on previously unseen data (test set), giving an idea of how well it generalises.
 * Pass source images located in `--img_path "./path/to/image_folder"` and paired target images `--target_path "./path/to/targets_folder"` to evaluate model located at `--model_path "./results/exp_name/datetime/model/best_model.pth"`.
 ```python
@@ -167,7 +168,7 @@ Evaluation produces single and comparison images for each sample in the test set
 
 Numerical results are also saved in .csv format ordered by lowest l1 error. These can be loaded into Excel or Python for inspection. 
 
-### 5. **Inference**
+## 5. **Inference**
 Similarly, to perform inference (generate predictions) on a folder of images - *without corresponding targets*:
 ```python
 python predict.py --model_path "path/to/best_model.pth" --img_path "./path/to/image_folder"
