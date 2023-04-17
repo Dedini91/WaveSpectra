@@ -1,4 +1,4 @@
-#Convolutional Autoencoder for Wave Spectra Prediction
+# Convolutional Autoencoder for Wave Spectra Prediction
 
 <p float="left">
    <img src="assets/Offshore_example.jpg" alt="Raw offshore spectra" style="height: 200px; width:200px;"/>
@@ -25,7 +25,7 @@ Arguments are passed when running the script from the command line (or using `!p
 ## Usage:
 ### 1. **Download the repository & install requirements**
    ```python
-    git clone https://...
+    git clone https://github.com/Dedini91/WaveSpectra_CAE.git
     pip install -r requirements.txt
    ```
 
