@@ -213,3 +213,18 @@ Supported arguments: **predict.py**
 # Optional arguments:
             --device            str-'cuda'          'prototyping mode (train on reduced dataset)'
 ```
+
+# TODO
+
+* Add support for:
+   * Entering custom image sizes
+   * Resuming training from checkpoint/transfer learning
+   * Implement SSIM as both a metric and loss function
+
+- Isolate n best and n worst examples during evaluation
+
+- Upload more sophisticated architectures
+
+- Test on larger datasets (10k, 20k, ..., 85k source-target pairs)
+
+- Upload very small example dataset
