@@ -214,6 +214,8 @@ Supported arguments: **predict.py**
             --device            str-'cuda'          'prototyping mode (train on reduced dataset)'
 ```
 
+---
+
 # TODO
 
 * Add support for:
