@@ -6,9 +6,8 @@ Add support for:
 - Isolate 5 best and 5 worst examples during evaluation
     (If testing more than 10 images)
 
-- Account for different ranges for each source spectrogram?
-    - Need to find a way to normalise raw data based on changing colormap range..?
+- Upload more sophisticated architectures
 
-- More sophisticated architectures
-    - different location of bottleneck? Multiple bottlenecks with skip connections?
-    - Multiple scalings for convolution (i.e. split off into 3*3, 5*5, 7*7, 9*9 kernels --> concatenate back together)
+- Test on larger datasets (10k, 20k, ..., 85k source-target pairs)
+
+- Upload small example dataset
