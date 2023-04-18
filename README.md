@@ -1,11 +1,15 @@
 <h1 align="center">Convolutional Autoencoder for Wave Spectra Prediction</h1>
 
+---
+
 <p align="center">
    <img src="assets/Offshore_example.jpg" alt="Raw offshore spectra" style="height: 200px; width:200px;"/>
    <img src="assets/Offshore_proc.jpg" alt="Processed offshore spectra" style="height: 200px; width:200px;"/>
    <img src="assets/NearShore_proc.jpg" alt="Processed near shore spectra" style="height: 200px; width:200px;"/>
    <img src="assets/NearShore_example.jpg" alt="Raw near shore spectra" style="height: 200px; width:200px;"/>
 </p>
+
+---
 
 This is a Pytorch implementation of an unsupervised image-to-image convolutional autoencoder, capable of accurately predicting near shore wave spectra from corresponding offshore spectra in the form of 64*64 spectrograms.
 
@@ -23,6 +27,7 @@ Given a .NETCDF with raw offshore and corresponding near shore data:
 Arguments are passed when running the script from the command line (or using `!python` in Colab)
 * For booleans that are set to `False` by default, simply pass the flag with no argument to set to `True`
 
+---
 
 ## 1. **Download the repository & install requirements**
    ```
@@ -35,6 +40,8 @@ Arguments are passed when running the script from the command line (or using `!p
   * Several thousand pairs of images is more than enough data, but use as much as time permits
   * Best to take small chunks of samples from throughout the ~85,000 total, for dataset diversity. 
 * Download these from Colab if training locally; place in the parent folder of your project
+
+---
 
 ## 2. **Preprocess raw data and make dataset**
 > **Ensure that raw images are located in ***./data*****
@@ -82,6 +89,7 @@ Example:
 python make_dataset.py --data path/to/data_folder
 ```
 
+---
 
 ## 3. **Training**
 
@@ -143,6 +151,7 @@ tensorboard --logdir="path/to/logs_folder/"
    <img src="assets/losses.jpg" alt="Example loss plot" style="height: 300px; width;"/>
 </p>
 
+---
 
 ## 4. **Evaluation**
 Evaluates the performance of a trained model on previously unseen data (test set), giving an idea of how well it generalises.
@@ -174,8 +183,18 @@ Evaluation produces single and comparison images for each sample in the test set
    <img src="assets/error_map.jpg" alt="Error map example" style="height: 400;"/>
 </p>
 
-Numerical results are also saved in .csv format ordered by lowest l1 error. These can be loaded into Excel or Python for further inspection. 
+Numerical results are also saved in .csv format ordered by lowest l1 error. These can be loaded into Excel or Python for further inspection, for identification of challenging stimuli, etc. 
 
+Example:
+   | Image ID | L1/MAE (sum) | L1/MAE (mean) | L2/MSE (sum) | L2/MSE (mean) | Huber (sum) | Huber (mean) |
+   | :-- | :-: | :-: | :-: | :-: | :-: | :-: |
+   | 12532.jpg | 6.345151 | 0.001549 | 0.380528 | 0.000093 | 0.190264 | 0.000046 |
+   | 18572.jpg | 6.740136 | 0.001646 | 0.127139 | 0.000031 | 0.063569 | 0.000016 |
+   | 17399.jpg | 7.206785 | 0.001759 | 0.357544 | 0.000087 | 0.178772 | 0.000044 |
+   | 11254.jpg | 7.340772 | 0.001792 | 0.430695 | 0.000105 | 0.215348 | 0.000053 |
+   | 18130.jpg | 7.443274 | 0.001817 | 0.525027 | 0.000128 | 0.262514 | 0.000064 |
+
+---
 
 ## 5. **Inference**
 Similarly, to perform inference (generate predictions) on a folder of images - *without corresponding targets*:
