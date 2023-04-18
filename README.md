@@ -78,7 +78,7 @@ Arguments are passed when running the script from the command line (or using `!p
   * For prototyping purposes, manually create copies of these subfolders with reduced # samples, prepending "red_" to the directory name
     * e.g. ***red_x_train/***, ***red_y_train/***, etc. 
 
-Supported CLI arguments: **make_dataset.py**
+Supported arguments: **make_dataset.py**
 ```python
 Short Flag  Long flag           Type-Default        Description
 # Required arguments:
@@ -103,7 +103,7 @@ or in Colab:
 
 > See `python train.py --help` for a list of supported arguments and available options.
 
-Supported CLI arguments: **train.py**
+Supported arguments: **train.py**
 ```python
                                 Type-Default        Description
 # Required arguments:
@@ -162,7 +162,7 @@ python evaluate.py --model_path "path/to/best_model.pth" --img_path "./path/to/i
 
 > See `python evaluate.py --help` for a list of supported arguments and available options.
 
-Supported CLI arguments: **evaluate.py**
+Supported arguments: **evaluate.py**
 ```python
                                 Type-Default        Description
 # Required arguments:
@@ -204,7 +204,7 @@ python predict.py --model_path "path/to/best_model.pth" --img_path "./path/to/im
 
 > See `python inference.py --help` for a list of supported arguments and available options.
 
-Supported CLI arguments: **predict.py**
+Supported arguments: **predict.py**
 ```python
                                 Type-Default        Description
 # Required arguments:
