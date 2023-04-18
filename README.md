@@ -1,6 +1,6 @@
-# Convolutional Autoencoder for Wave Spectra Prediction
+<h1 align="center">Convolutional Autoencoder for Wave Spectra Prediction</h1>
 
-<p float="left">
+<p align="center">
    <img src="assets/Offshore_example.jpg" alt="Raw offshore spectra" style="height: 200px; width:200px;"/>
    <img src="assets/Offshore_proc.jpg" alt="Processed offshore spectra" style="height: 200px; width:200px;"/>
    <img src="assets/NearShore_proc.jpg" alt="Processed near shore spectra" style="height: 200px; width:200px;"/>
@@ -18,7 +18,7 @@ Given a .NETCDF with raw offshore and corresponding near shore data:
 4. Evaluate network on unseen data/target pairs
 5. Perform inference (generate prediction spectrograms) on source images
 
-#### If using Google Colab, simply run the included scripts from the Walkthrough.ipynb notebook.
+> If using Google Colab, simply run the included scripts from the Walkthrough.ipynb notebook.
 
 Arguments are passed when running the script from the command line (or using `!python` in Colab)
 * For booleans that are set to `False` by default, simply pass the flag with no argument to set to `True`
@@ -31,13 +31,13 @@ Arguments are passed when running the script from the command line (or using `!p
    ```
 
 ### 1.5. Get raw data from .NETCDF files
-* Use ***"get_data.ipynb"*** to retrieve data and save spectrograms
+> Use ***"get_data.ipynb"*** to retrieve data and save spectrograms
   * Several thousand pairs of images is more than enough data, but use as much as time permits
   * Best to take small chunks of samples from throughout the ~85,000 total, for dataset diversity. 
 * Download these from Colab if training locally; place in the parent folder of your project
 
 ## 2. **Preprocess raw data and make dataset**
-* **Ensure that raw images are located in ***./data*****
+> **Ensure that raw images are located in ***./data*****
 
   * Resize images to 64*64 pixels; greyscale; normalised to [0 1]
   * Randomly splits data into train/validation/test datasets (0.8x0.8/0.2x0.8/0.2)
@@ -81,6 +81,8 @@ Example:
 ```python
 python make_dataset.py --data path/to/data_folder
 ```
+
+
 ## 3. **Training**
 
 Example:
@@ -91,9 +93,7 @@ or in Colab:
 ```
 * The model will default to using gpu where available, unless the `--device cpu` argument is explicitly passed.
 
-
-* See `python train.py --help` for a list of supported arguments and available options.
-
+> See `python train.py --help` for a list of supported arguments and available options.
 
 Supported CLI arguments: **train.py**
 ```python
@@ -139,8 +139,10 @@ tensorboard --logdir="path/to/logs_folder/"
 * Prediction images for training, validation, and basic evaluation on test set
 * Basic evaluation results, sorted by lowest l1 loss
 
+<p align="center">
+   <img src="assets/losses.jpg" alt="Example loss plot" style="height: 300px; width;"/>
+</p>
 
-<img src="assets/losses.jpg" alt="Example loss plot" style="height: 300px; width;"/>
 
 ## 4. **Evaluation**
 Evaluates the performance of a trained model on previously unseen data (test set), giving an idea of how well it generalises.
@@ -148,6 +150,9 @@ Evaluates the performance of a trained model on previously unseen data (test set
 ```python
 python evaluate.py --model_path "path/to/best_model.pth" --img_path "./path/to/image_folder" --target_path "./path/to/targets_folder" --verbose
 ```
+
+> See `python evaluate.py --help` for a list of supported arguments and available options.
+
 Supported CLI arguments: **evaluate.py**
 ```python
                                 Type-Default        Description
@@ -162,17 +167,24 @@ Supported CLI arguments: **evaluate.py**
     -l      --loss              str-'l1'            'loss function'
             --reduction         str-'sum'           'reduction method'
 ```
-Evaluation produces single and comparison images for each sample in the test set, with error maps turned on by default. Error maps display the per-pixel absolute error as calculated by various loss functions. Turning error maps off by passing `--errmaps` may improve training times. 
+Evaluation produces single and comparison images for each sample in the test set, with error maps turned on by default. Error maps display the per-pixel absolute error as calculated by various loss functions. 
+> Turning error maps off by passing `--errmaps` may improve training times. 
 
-<img src="assets/error_map.jpg" alt="Error map example" style="height: 400;"/>
+<p align='center'>
+   <img src="assets/error_map.jpg" alt="Error map example" style="height: 400;"/>
+</p>
 
-Numerical results are also saved in .csv format ordered by lowest l1 error. These can be loaded into Excel or Python for inspection. 
+Numerical results are also saved in .csv format ordered by lowest l1 error. These can be loaded into Excel or Python for further inspection. 
+
 
 ## 5. **Inference**
 Similarly, to perform inference (generate predictions) on a folder of images - *without corresponding targets*:
 ```python
 python predict.py --model_path "path/to/best_model.pth" --img_path "./path/to/image_folder"
 ```
+
+> See `python inference.py --help` for a list of supported arguments and available options.
+
 Supported CLI arguments: **predict.py**
 ```python
                                 Type-Default        Description
