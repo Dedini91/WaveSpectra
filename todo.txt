@@ -8,3 +8,7 @@ Add support for:
 
 - Account for different ranges for each source spectrogram?
     - Need to find a way to normalise raw data based on changing colormap range..?
+
+- More sophisticated architectures
+    - different location of bottleneck? Multiple bottlenecks with skip connections?
+    - Multiple scalings for convolution (i.e. split off into 3*3, 5*5, 7*7, 9*9 kernels --> concatenate back together)
