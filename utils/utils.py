@@ -1,6 +1,8 @@
-"""Convenience functions."""
+"""Misc. functions"""
 import matplotlib.pyplot as plt
 import torch
+from pathlib import Path
+import os
 
 
 def sigmoid(x):
@@ -16,6 +18,31 @@ def getinfo(img):
     total_px = img.shape[0] * img.shape[1]
     dtype = img.dtype
     return img.shape, total_px, dtype
+
+
+def save_sample(data, target, prediction, epoch, filename, root_path):
+    epoch_str = str(epoch + 1).zfill(3)
+    plt.subplot(131, title='Source', xticks=[], yticks=[])
+    plt.imshow(data[0, :, :].squeeze(), cmap="gray")
+    plt.subplot(133, title='Target', xticks=[], yticks=[])
+    plt.imshow(target[0, :, :].squeeze(), cmap="gray")
+    plt.subplot(132, title='Prediction', xticks=[], yticks=[])
+    plt.imshow(prediction[:, :].squeeze(), cmap="gray")
+    plt.suptitle("Output: Epoch " + str(epoch + 1))
+    plt.tight_layout()
+    
+    epoch_str = "epoch_" + epoch_str
+    filename_path = str(filename)
+    pathname = "/predictions/" + "training/" + filename_path + "/" + epoch_str
+    fullpath = str(root_path) + pathname
+
+    if not os.path.exists(os.path.dirname(fullpath)):
+      os.mkdir(os.path.dirname(fullpath))
+    
+    plt.savefig(fullpath + ".jpg")
+    plt.close()
+    
+    return None
 
 
 def save_examples(x_data, y_data, z_data, mode, epoch, filename, root_path):
