@@ -34,6 +34,8 @@ parser.add_argument("-d", "--data", action="store", type=str, required=True,
                     help="path to processed dataset")
 parser.add_argument("--prototyping", action="store_true", default=False,
                     help="prototyping mode (train on reduced dataset)")
+parser.add_argument("--track", action='store', type=str, required=False,
+                    help="saves all predictions for a specified source image (integer only e.g. 00178)")
 parser.add_argument("--model_path", action="store", type=str, required=False,
                     help="path to saved model and optimiser .pth files")
 parser.add_argument("--device", type=str, default='cuda', choices=['cuda', 'cpu'],
@@ -281,9 +283,9 @@ def train():
                 optimizer.zero_grad()  # Clear gradients
                 output = network(data)  # Forward pass
 
-                output_min, output_max = output.min(), output.max()     # normalise prediction to range of target
-                target_min, target_max = target.min(), target.max()
-                output = (output - output_min) / (output_max - output_min) * (target_max - target_min) + target_min
+                # output_min, output_max = output.min(), output.max()     # normalise prediction to range of target
+                # target_min, target_max = target.min(), target.max()
+                # output = (output - output_min) / (output_max - output_min) * (target_max - target_min) + target_min
 
                 loss = loss_function(output, target)  # Calculate loss
                 loss.backward()  # Calculate gradients
@@ -292,10 +294,12 @@ def train():
                 optimizer.step()  # Update weights
                 if args['verbose']:
                     tepoch.set_postfix(loss=loss.item())
-        train_loss = get_mean(train_losses_tmp[0:n_iter])
+                if str(args['track']) == data_index[0].split('.')[0]:
+                    save_sample(data.detach().cpu().numpy(), target.detach().cpu().numpy(), output.detach().cpu().numpy().squeeze(), epoch, args['track'], filepath)
+        train_loss = get_mean(train_losses_tmp[0:n_iter]) / args['batch_size']
         train_losses.append(train_loss)
         lr_schedule = optimizer.param_groups[0]["lr"]
-        writer.add_scalar("Loss/train", loss, epoch)
+        writer.add_scalar("Loss/train", loss / args['batch_size'], epoch)
         writer.add_scalar("Learning rate/Cosine", lr_schedule, epoch)
         if args['scheduler']:
             scheduler.step()
@@ -311,9 +315,8 @@ def train():
         if len(prediction.shape) == 2:
             prediction_fixed = np.expand_dims(prediction, axis=0)
             prediction = prediction_fixed
-        save_examples(data.detach().cpu().numpy(), 
-                      target.detach().cpu().numpy(), 
-                      prediction, 'Training', epoch, data_index, filepath)
+        save_examples(data.detach().cpu().numpy(), target.detach().cpu().numpy(), prediction, 'Training', epoch, data_index, filepath)
+
 
         with torch.no_grad():
             with tqdm(val_loader, unit="batch") as tepoch:
@@ -325,9 +328,9 @@ def train():
                     optimizer.zero_grad()
                     output = network(data)
 
-                    output_min, output_max = output.min(), output.max()
-                    target_min, target_max = target.min(), target.max()
-                    output = (output - output_min) / (output_max - output_min) * (target_max - target_min) + target_min
+                    # output_min, output_max = output.min(), output.max()
+                    # target_min, target_max = target.min(), target.max()
+                    # output = (output - output_min) / (output_max - output_min) * (target_max - target_min) + target_min
 
                     loss = loss_function(output, target)
                     val_losses_tmp.append(torch.Tensor.tolist(loss))
@@ -353,8 +356,8 @@ def train():
                           epoch,
                           data_index,
                           filepath)
-            writer.add_scalar("Loss/validation", loss, epoch)
-            valid_loss = get_mean(val_losses_tmp[0:n_iter])
+            writer.add_scalar("Loss/validation", loss / args['batch_size'], epoch)
+            valid_loss = get_mean(val_losses_tmp[0:n_iter]) / args['batch_size']
             val_losses.append(valid_loss)
             writer.add_scalars('Training Losses', {'Train_loss': train_loss,
                                                    'Valid_loss': valid_loss},
@@ -366,12 +369,12 @@ def train():
             if args['verbose']:
                 log.info('Saved model checkpoint')
 
-        if loss < last_loss or epoch == 0:
+        if valid_loss < last_loss or epoch == 0:
             torch.save(network.state_dict(), str(model_path) + "/best_model.pth")
             torch.save(optimizer.state_dict(), str(model_path) + "/best_optimizer.pth")
             if args['verbose']:
                 log.info('New best model and optimizer saved!')
-            last_loss = loss
+            last_loss = valid_loss
 
         # if not args['verbose']:
         log.info('Train loss: {:.6f}\t'
