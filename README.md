@@ -111,6 +111,7 @@ Supported arguments: **train.py**
     -n      --name              str-None            'experiment name'
 # Optional arguments:
             --prototyping       bool-False          'prototyping mode (train on reduced dataset)'
+            --track             str-None            'saves all predictions for a specified source image (integer only e.g. 00178)'
     -v      --verbose           bool-False          'verbose output (recommended)'
             --model_path        str-None            'path to saved model.pth file'
 # Trainer arguments:
