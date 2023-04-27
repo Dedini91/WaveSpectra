@@ -92,6 +92,8 @@ Run the preprocessing script to obtain the following directory tree **(ensure .N
 # Required arguments:           Type-Default        Description
     -d      --data              str-None            'path to parent directory of raw data folder'
     -n      --name              str-None            'dataset name'
+    -s                          int-2000            'number of training samples (max 80% of total # samples)'
+    -c                          int-10              'number of clusters (classes)'
 ```
 
 ---
