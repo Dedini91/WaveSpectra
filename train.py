@@ -667,3 +667,6 @@ if args['num_epochs'] > 1:
     plot_losses(metrics_path, train_losses, val_losses)
 evaluate()
 losses_to_csv('results_evaluation')
+
+if args['track']:
+    make_gif("/path/to/images")
