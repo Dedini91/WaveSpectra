@@ -166,3 +166,4 @@ Evaluation produces single and comparison images for each sample in the test set
 * Add support for:
    * Entering custom image sizes
    * Resuming training from checkpoint
+   * Switch to constrained k-means <- fix hardcoded clustering parameters
