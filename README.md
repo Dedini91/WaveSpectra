@@ -162,5 +162,5 @@ Evaluation produces single and comparison images for each sample in the test set
 # TODO
 
 * Add support for:
-   * Entering custom image sizes (use transforms() or modify network layers)
+   * Entering custom image sizes
    * Resuming training from checkpoint
