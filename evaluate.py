@@ -16,6 +16,7 @@ from torch.utils.data import Dataset, DataLoader
 from prettytable import PrettyTable
 from torchinfo import summary
 from torch.utils.tensorboard import SummaryWriter
+
 from utils.utils import *
 from models.model import *
 from utils.dataset import WaveSpectra
