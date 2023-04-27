@@ -73,19 +73,19 @@ timestr = time.strftime("%m-%d_%H%M")
 filepath = Path('results', str(args['name']), str(timestr))
 filepath.mkdir(parents=True, exist_ok=True)
 
+logs_path = Path.joinpath(filepath, "logs")
 model_path = Path.joinpath(filepath, "model")
 metrics_path = Path.joinpath(filepath, "metrics")
 preds_tr_path = Path.joinpath(filepath, "predictions", "training")
 preds_val_path = Path.joinpath(filepath, "predictions", "validation")
 preds_eval_path = Path.joinpath(filepath, "predictions", "evaluation")
-logs_path = Path.joinpath(filepath, "logs")
 
+logs_path.mkdir(parents=True, exist_ok=True)
 model_path.mkdir(parents=True, exist_ok=True)
 metrics_path.mkdir(parents=True, exist_ok=True)
 preds_tr_path.mkdir(parents=True, exist_ok=True)
 preds_val_path.mkdir(parents=True, exist_ok=True)
 preds_eval_path.mkdir(parents=True, exist_ok=True)
-logs_path.mkdir(parents=True, exist_ok=True)
 
 
 # Set up loggers/handlers
