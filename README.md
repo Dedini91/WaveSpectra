@@ -30,7 +30,7 @@ Arguments are passed when running the script from the command line.
 
 Example usage:
 ```python
-python make_dataset.py --data path/to/data_folder -n new_dataset_test
+python make_balanced_dataset.py --data path/to/data_folder -n new_dataset_test
 ```
 ```python
 python train.py -n exp_name -d "data/processed/" -b 1 -e 10 -o adamw -l ssim --lr 0.00005 --verbose
