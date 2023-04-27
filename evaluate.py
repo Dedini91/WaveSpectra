@@ -16,6 +16,7 @@ from torch.utils.data import Dataset, DataLoader
 from prettytable import PrettyTable
 from torchinfo import summary
 
+from utils.ssim import SSIM
 from utils.utils import *
 from models.model import *
 from utils.dataset import WaveSpectra
@@ -37,7 +38,7 @@ parser.add_argument("--device", type=str, default='cuda', choices=['cuda', 'cpu'
                     help="device")
 parser.add_argument("--errmaps", action='store_false', default=True,
                     help="turns off error maps in output files (may speed up evaluation)")
-parser.add_argument("-l", "--loss", action="store", type=str, default='l1', choices=['l1', 'mse', 'huber'],
+parser.add_argument("-l", "--loss", action="store", type=str, default='ssim', choices=['l1', 'mse', 'huber', 'cosine', 'ssim],
                     help="loss function")
 parser.add_argument("--reduction", action="store", type=str, default='sum', choices=['mean', 'sum', 'none'],
                     help="reduction method")
