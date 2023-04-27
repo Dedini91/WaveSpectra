@@ -1,6 +1,7 @@
 """Misc. functions"""
 import matplotlib.pyplot as plt
 import torch
+import torch.nn as nn
 from pathlib import Path
 import os
 
@@ -18,6 +19,20 @@ def getinfo(img):
     total_px = img.shape[0] * img.shape[1]
     dtype = img.dtype
     return img.shape, total_px, dtype
+
+
+def init_layers(m):
+    if isinstance(m, nn.Conv2d):
+        torch.nn.init.kaiming_uniform_(m.weight)
+        torch.nn.init.zeros_(m.bias)
+    return None
+
+
+def normalise_to_source(target, output):
+    output_min, output_max = output.min(), output.max()
+    target_min, target_max = target.min(), target.max()
+    output = (output - output_min) / (output_max - output_min) * (target_max - target_min) + target_min
+    return output
 
 
 def save_sample(data, target, prediction, epoch, filename, root_path):
