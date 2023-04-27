@@ -19,7 +19,7 @@ As the output tensor's dimensions match those of the input, the raw weights of t
 
 > If running on Colab or similar, follow the included .ipynb walkthrough notebook
 
-##Usage:
+## Usage:
 ### **Download the repository & install requirements**
    ```python
     git clone https://github.com/Dedini91/WaveSpectra_CAE.git
