@@ -15,7 +15,6 @@ import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
 from prettytable import PrettyTable
 from torchinfo import summary
-from torch.utils.tensorboard import SummaryWriter
 
 from utils.utils import *
 from models.model import *
@@ -94,8 +93,6 @@ if device == 'cuda':
     torch.backends.cudnn.benchmark = True
 if args['verbose']:
     log.info("\nDevice:\t" + str(device))
-print(args['img_path'])
-print(args['target_path'])
 
 # Get all image paths
 x_test_paths = glob(str(args['img_path']) + '/*.jpg')
@@ -111,16 +108,15 @@ test_loader = DataLoader(test, batch_size=1, shuffle=False)
 test_loader.requires_grad = False
 
 log.info("==========================================================================================")
-# Setup CNN using custom CAE class in models.model.py
-network = CAE()
+# Setup CNN using custom class in models.model.py
+network = WaveNet()
 network.to(device)
-writer = SummaryWriter(str(eval_path) + "/logs/")
 
 if args['verbose']:
     log.debug(summary(network, (1, 1, 64, 64), verbose=2))
 
 for param in network.parameters():
-    param.requires_grad = True
+    param.requires_grad = False
 
 total_samples = len(test)
 n_iter = math.ceil(total_samples / 1)
@@ -156,19 +152,26 @@ def evaluate():
     l2_mean.clear()
     huber_sum.clear()
     huber_mean.clear()
+    cosineLoss.clear()
+    cosineSim.clear()
+    ssimLoss.clear()
+    ssimSim.clear()
     log.info("Evaluating model...")
-    model = CAE()
+
+    model = WaveNet()
     model.load_state_dict(torch.load(str(args['model_path'])))
+    
     if args['verbose']:
         log.info("Loading model from supplied model_path: {}".format(str(args['model_path']).replace("\\", '/')))
-
+        
     model.to(device)
     model.eval()
 
-    test_losses_l1, test_losses_mse, test_losses_huber = [], [], []
-
+    cos_test_err, cos_test_sim, ssim_test_err, ssim_test_sim = [], [], [], []
+    
     with tqdm(test_loader, unit="batch") as tepoch:
         with torch.no_grad():
+            ssim = SSIM().cuda() if torch.cuda.is_available() else SSIM()
             i = 0
             for data, target, data_index, target_index in tepoch:
                 pred_path = Path.joinpath(eval_path, str(data_index[0]).split('.')[0])
@@ -178,18 +181,38 @@ def evaluate():
                 tepoch.set_description(f"Evaluating")
                 output = model(data)
 
-                output_min, output_max = output.min(), output.max()
-                target_min, target_max = target.min(), target.max()
-                output = (output - output_min) / (output_max - output_min) * (target_max - target_min) + target_min
-
                 test_l1 = F.l1_loss(output, target, reduction='sum')
                 test_mse = F.mse_loss(output, target, reduction='sum')
                 test_huber = F.huber_loss(output, target, reduction='sum')
+                
+                # Flatten images -> 1D tensors: Compute cosine similarity/loss
+                target_vec = torch.flatten(target)
+                output_vec = torch.flatten(output)
+                cosine_sim = F.cosine_similarity(output_vec, target_vec, dim=0)  # Calculate loss
+                cosine_loss = 1 - cosine_sim
+
+                # Compute SSIM
+                ssim_similarity = ssim(target, output)
+                ssim_loss_initial = 1 - ssim_similarity
+
+                if args['loss'] == 'cosine':
+                    loss = cosine_loss.item()
+                elif args['loss'] == 'ssim':
+                    loss = ssim_loss_initial
+                else:
+                    loss = loss_function(output, target)  # Calculate loss
+
+                cos_test_sim.append(cosine_sim.item() * 100)
+                cos_test_err.append(cosine_loss.item())
+                ssim_test_sim.append(ssim_similarity * 100)
+                ssim_test_err.append(ssim_loss_initial.item())
 
                 if args['errmaps']:
                     plot_l1 = F.l1_loss(output, target, reduction='none').detach().cpu().numpy().squeeze()
                     plot_l2 = F.mse_loss(output, target, reduction='none').detach().cpu().numpy().squeeze()
                     plot_huber = F.huber_loss(output, target, reduction='none').detach().cpu().numpy().squeeze()
+                    plot_cos_loss = cosine_loss.detach().cpu().numpy().squeeze()
+                    plot_ssim_loss = ssim_loss_initial.detach().cpu().numpy().squeeze()
 
                 prediction = output.detach().cpu().numpy().squeeze()
 
@@ -199,6 +222,8 @@ def evaluate():
                           torch.Tensor.tolist(test_l1),
                           torch.Tensor.tolist(test_mse),
                           torch.Tensor.tolist(test_huber),
+                          torch.Tensor.tolist(cosine_loss.item()),
+                          torch.Tensor.tolist(ssim_loss_initial.item()),
                           data_index[0],
                           pred_path)
                 i += 1
