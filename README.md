@@ -139,7 +139,7 @@ Evaluates the performance of a trained model on previously unseen data (test set
 ```
 Evaluation produces single and comparison images for each sample in the test set, with error maps turned on by default. Error maps display the per-pixel absolute error as calculated by various loss functions. Turning error maps off by passing `--errmaps` may improve training times. 
 
-<img src="assets/15000_error.jpg" alt="Error map example" style="height: 400;"/>
+<img src="assets/error_map.jpg" alt="Error map example" style="height: 400;"/>
 
 Numerical results are also saved in .csv format ordered by lowest error (for the selected loss function). These can be loaded into Excel or Python for inspection.
 ---
