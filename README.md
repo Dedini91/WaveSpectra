@@ -49,6 +49,8 @@ For each script, there are only a few required arguments.
 ---
 
 ## 1. **Preprocess raw data and make dataset**
+> Use "get_data.ipynb" to retrieve data and save spectrograms
+
 * **make_balanced_dataset.py**
    1. Extract spectrogram pairs from .NETCDF files, store in ***data/raw/***
    2. Basic preprocessing (resize to 64*64, rename, greyscale), store in ***data/interim/***
@@ -56,8 +58,6 @@ For each script, there are only a few required arguments.
    4. Create train/validation/test split, taking equal # samples from each cluster, store in ***data/processed/***
    5. Calculate mean & std. dev. of training data
    
-> Use "get_data.ipynb" to retrieve data and save spectrograms
-
 Run the preprocessing script to obtain the following directory tree **(ensure .NETCDF files are in the correct location before executing):**
 
 ```
