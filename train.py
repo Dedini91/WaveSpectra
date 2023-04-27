@@ -330,6 +330,7 @@ def train():
                     tepoch.set_postfix(loss=loss.item())
                 if str(args['track']) == data_index[0].split('.')[0]:
                     save_sample(data.detach().cpu().numpy(), target.detach().cpu().numpy(), output.detach().cpu().numpy().squeeze(), epoch, args['track'], filepath)
+        
         train_loss = get_mean(train_losses_tmp[0:n_iter])
         train_losses.append(train_loss)
         cos_loss = get_mean(cosine_losses_tmp[0:n_iter])
@@ -669,4 +670,5 @@ evaluate()
 losses_to_csv('results_evaluation')
 
 if args['track']:
-    make_gif("/path/to/images")
+  pathname = preds_tr_path + "/" + args['track'] + "/"
+  make_gif(pathname)
