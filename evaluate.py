@@ -244,6 +244,12 @@ def evaluate():
                 l2_mean.append(torch.Tensor.tolist(F.mse_loss(output, target, reduction='mean')))
                 huber_sum.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='sum')))
                 huber_mean.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='mean')))
+                
+                cosineSim.append(cosine_sim)
+                cosineLoss.append(cosine_loss)
+
+                ssimLoss.append(ssim_loss_initial)
+                ssimSim.append(ssim_similarity)
 
                 test_losses_l1.append(torch.Tensor.tolist(test_l1))
                 test_losses_mse.append(torch.Tensor.tolist(test_mse))
@@ -260,7 +266,11 @@ def losses_to_csv(name):
         "L2/MSE (sum)": l2_sum,
         "L2/MSE (mean)": l2_mean,
         "Huber (sum)": huber_sum,
-        "Huber (mean)": huber_mean
+        "Huber (mean)": huber_mean,
+        "Cosine error": cosineLoss,
+        "Cosine similarity": cosineSim,
+        "SSIM error": ssimLoss,
+        "SSIM similarity": ssimSim
     }
     df = DataFrame.from_dict(loss_dict)
     df = df.sort_values(by='L1/MAE (sum)', ascending=True)
@@ -268,7 +278,8 @@ def losses_to_csv(name):
     log.info(df)
 
     df.to_csv(str(metrics_path) + "/" + name + ".csv", sep=",", float_format="%.6f", header=True, index=False)
-
+    
+  return None
 
 # Execute program
 evaluate()
