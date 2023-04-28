@@ -17,7 +17,7 @@ from prettytable import PrettyTable
 from torchinfo import summary
 from torch.utils.tensorboard import SummaryWriter
 from utils.utils import *
-from models.model import *
+from models.WaveNet import *
 from utils.dataset import WaveSpectraInf
 
 warnings.filterwarnings('ignore', category=UserWarning, message='TypedStorage is deprecated')
