@@ -286,8 +286,6 @@ def train():
         cosine_similarity_tmp = []
         ssim_losses_tmp = []
         ssim_similarity_tmp = []
-        cosine_similarity_tmp, cosine_losses_tmp = [], []
-        ssim_similarity_tmp, ssim_losses_tmp = [], []
         
         with tqdm(train_loader, unit="batch") as tepoch:
             for data, target, data_index, target_index in tepoch:
@@ -325,8 +323,7 @@ def train():
                     loss = loss_function(output, target)  # Calculate loss
 
                 loss.backward()  # Calculate gradients
-                
-                train_losses_tmp.append(torch.Tensor.tolist(loss))
+                train_losses_tmp.append(loss.cpu().item())
                 cosine_similarity_tmp.append(cosine_sim.item() * 100)
                 cosine_losses_tmp.append(cosine_loss.item())
                 ssim_similarity_tmp.append(ssim_similarity * 100)
@@ -343,7 +340,7 @@ def train():
         train_loss = get_mean(train_losses_tmp[0:n_iter])
         train_losses.append(train_loss)
         cos_loss = get_mean(cosine_losses_tmp[0:n_iter])
-        cos_losses.append(cosine_loss)
+        cos_losses.append(cos_loss)
         cos_sim = get_mean(cosine_similarity_tmp[0:n_iter])
         cos_sims.append(cos_sim)
         ssim_loss = get_mean(ssim_losses_tmp[0:n_iter])
@@ -369,15 +366,18 @@ def train():
         if len(prediction.shape) == 2:
             prediction_fixed = np.expand_dims(prediction, axis=0)
             prediction = prediction_fixed
+        
         save_examples(data.detach().cpu().numpy().squeeze(), target.detach().cpu().numpy().squeeze(), prediction, 'Training', epoch, data_index, filepath, args['batch_size'])
 
-
+# =============================================================================#
         with torch.no_grad():
             with tqdm(val_loader, unit="batch") as tepoch:
               cosine_similarity_val_tmp = []
               cosine_losses_val_tmp = []
               ssim_similarity_val_tmp = []
               ssim_losses_val_tmp = []
+              cosineLoss, cosineSim, ssimLoss, ssimSim = [], [], [], []
+              ssim = SSIM().cuda() if torch.cuda.is_available() else SSIM()
 
               for data, target, data_index, target_index in tepoch:
                   data = data.to(device)
@@ -394,7 +394,6 @@ def train():
                   cosine_loss = 1 - cosine_sim
 
                   # Compute SSIM
-                  ssim = SSIM().cuda() if torch.cuda.is_available() else SSIM()
                   ssim_similarity = ssim(target, output)
                   ssim_loss_initial = 1 - ssim_similarity
                   if switching:
@@ -410,8 +409,8 @@ def train():
                       loss = ssim_loss_initial
                   else:
                       loss = loss_function(output, target)  # Calculate loss
-                      
-                  val_losses_tmp.append(loss)
+                  
+                  val_losses_tmp.append(loss.cpu().item())
                   val_losses_iter.append(loss)
                   cosine_similarity_val_tmp.append(cosine_sim.item() * 100)
                   cosine_losses_val_tmp.append(cosine_loss.item())
@@ -449,10 +448,13 @@ def train():
                           filepath,
                           args['batch_size'])
             writer.add_scalar("Loss/validation", loss / args['batch_size'], epoch)
+            print(val_losses_tmp)
             valid_loss = get_mean(val_losses_tmp[0:n_iter]) / args['batch_size']
+            print(valid_loss)
             val_losses.append(valid_loss)
-            writer.add_scalar("Loss/cosine_error", cosine_loss, epoch)
-            writer.add_scalar("Loss/cosine_similarity", cosine_sim, epoch)
+            print(val_losses)
+            writer.add_scalar("Loss/cosine_error", cosine_loss.item(), epoch)
+            writer.add_scalar("Loss/cosine_similarity", cosine_sim.item(), epoch)
             writer.add_scalar("Loss/ssim_error", ssim_loss, epoch)
             writer.add_scalar("Loss/ssim_similarity", ssim_similarity, epoch)
             cos_sim_val = get_mean(cosine_similarity_val_tmp[0:n_iter]) / args['batch_size']
@@ -627,6 +629,7 @@ def evaluate():
                 else:
                     loss = loss_function(output, target)  # Calculate loss
 
+                loss.to('cpu')
                 cosine_similarity_val_tmp.append(cosine_sim.item() * 100)
                 cosine_losses_val_tmp.append(cosine_loss.item())
                 ssim_similarity_val_tmp.append(ssim_similarity * 100)
