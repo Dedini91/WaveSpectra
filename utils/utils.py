@@ -195,8 +195,7 @@ def plot_losses(metrics_path, train_losses, val_losses):
 def save_prediction(prediction, filename, path):
     plt.imshow(prediction[:, :], cmap="gray")
     plt.axis('off')
-    plt.suptitle("Error maps for three losses:")
-    plt.savefig(str(path) + "/" + str(filename).split(".")[0] + ".jpg")
+    plt.savefig(str(path) + "/" + str(filename).split(".")[0] + ".jpg", bbox_inches="tight", pad_inches=0)
     plt.close()
 
     return None
