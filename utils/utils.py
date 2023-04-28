@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 from pathlib import Path
 import os
+from PIL import Image
+from glob import glob
 
 
 def sigmoid(x):
@@ -25,6 +27,15 @@ def init_layers(m):
     if isinstance(m, nn.Conv2d):
         torch.nn.init.kaiming_uniform_(m.weight)
         torch.nn.init.zeros_(m.bias)
+    return None
+
+
+def make_gif(frame_folder, savepath, foldername):
+    pathname = savepath + "/" + foldername + "/"
+    frames = [Image.open(image) for image in glob(f"{frame_folder}/*.jpg")]
+    frame_one = frames[0]
+    frame_one.save(pathname + "training.gif", format="gif", append_images=frames,
+                   save_all=True, duration=100, loop=0)
     return None
 
 
@@ -60,21 +71,37 @@ def save_sample(data, target, prediction, epoch, filename, root_path):
     return None
 
 
-def save_examples(x_data, y_data, z_data, mode, epoch, filename, root_path):
-    for i in range(len(filename)):
-        plt.subplot(131, title='Source', xticks=[], yticks=[])
-        plt.imshow(x_data[i, :, :].squeeze(), cmap="gray")
-        plt.subplot(132, title='Target', xticks=[], yticks=[])
-        plt.imshow(y_data[i, :, :].squeeze(), cmap="gray")
-        plt.subplot(133, title='Prediction', xticks=[], yticks=[])
-        plt.imshow(z_data[i, :, :].squeeze(), cmap="gray")
-        plt.suptitle(mode + " output: Epoch " + str(epoch + 1))
-        plt.tight_layout()
-        if mode == 'Training':
-            plt.savefig(str(root_path) + "/predictions/training/epoch_" + str(epoch+1) + "/" + filename[i])
-        elif mode == 'Validation':
-            plt.savefig(str(root_path) + "/predictions/validation/epoch_" + str(epoch+1) + "/" + filename[i])
-        plt.close()
+def save_examples(x_data, y_data, z_data, mode, epoch, filename, root_path, batch):
+    
+    if batch > 1:
+      for i in range(len(filename)):
+          plt.subplot(131, title='Source', xticks=[], yticks=[])
+          plt.imshow(x_data[i, :, :].squeeze(), cmap="gray")
+          plt.subplot(132, title='Target', xticks=[], yticks=[])
+          plt.imshow(y_data[i, :, :].squeeze(), cmap="gray")
+          plt.subplot(133, title='Prediction', xticks=[], yticks=[])
+          plt.imshow(z_data[i, :, :].squeeze(), cmap="gray")
+          plt.suptitle(mode + " output: Epoch " + str(epoch + 1))
+          plt.tight_layout()
+          if mode == 'Training':
+              plt.savefig(str(root_path) + "/predictions/training/epoch_" + str(epoch+1) + "/" + filename[i])
+          elif mode == 'Validation':
+              plt.savefig(str(root_path) + "/predictions/validation/epoch_" + str(epoch+1) + "/" + filename[i])
+          plt.close()
+    else:
+      plt.subplot(131, title='Source', xticks=[], yticks=[])
+      plt.imshow(x_data[:, :], cmap="gray")
+      plt.subplot(132, title='Target', xticks=[], yticks=[])
+      plt.imshow(y_data[:, :], cmap="gray")
+      plt.subplot(133, title='Prediction', xticks=[], yticks=[])
+      plt.imshow(z_data[:, :, :].squeeze(), cmap="gray")
+      plt.suptitle(mode + " output: Epoch " + str(epoch + 1))
+      plt.tight_layout()
+      if mode == 'Training':
+          plt.savefig(str(root_path) + "/predictions/training/epoch_" + str(epoch+1) + "/" + filename[0])
+      elif mode == 'Validation':
+          plt.savefig(str(root_path) + "/predictions/validation/epoch_" + str(epoch+1) + "/" + filename[0])
+      plt.close()
     return None
 
 
