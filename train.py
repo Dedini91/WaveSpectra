@@ -360,7 +360,7 @@ def train():
         if len(prediction.shape) == 2:
             prediction_fixed = np.expand_dims(prediction, axis=0)
             prediction = prediction_fixed
-        save_examples(data.detach().cpu().numpy().squeeze(), target.detach().cpu().numpy().squeeze(), prediction, 'Training', epoch, data_index, filepath)
+        save_examples(data.detach().cpu().numpy().squeeze(), target.detach().cpu().numpy().squeeze(), prediction, 'Training', epoch, data_index, filepath, args['batch_size'])
 
 
         with torch.no_grad():
@@ -413,23 +413,24 @@ def train():
                         huber_sum.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='sum')))
                         huber_mean.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='mean')))
                         
-                        cosineSim.append(cosine_sim)
-                        cosineLoss.append(cosine_loss)
+                        cosineSim.append(cosine_sim.detach().cpu().numpy())
+                        cosineLoss.append(cosine_loss.detach().cpu().numpy())
 
-                        ssimLoss.append(ssim_loss_initial)
-                        ssimSim.append(ssim_similarity)
+                        ssimLoss.append(ssim_loss_initial.detach().cpu().numpy())
+                        ssimSim.append(ssim_similarity.detach().cpu().numpy())
                         
             prediction = output.detach().cpu().numpy().squeeze()
             if len(prediction.shape) == 2:
                 prediction_fixed = np.expand_dims(prediction, axis=0)
                 prediction = prediction_fixed
-            save_examples(data.detach().cpu().numpy(),
-                          target.detach().cpu().numpy(),
+            save_examples(data.detach().cpu().numpy().squeeze(),
+                          target.detach().cpu().numpy().squeeze(),
                           prediction,
                           'Validation',
                           epoch,
                           data_index,
-                          filepath)
+                          filepath,
+                          args['batch_size'])
             writer.add_scalar("Loss/validation", loss / args['batch_size'], epoch)
             valid_loss = get_mean(val_losses_tmp[0:n_iter]) / args['batch_size']
             val_losses.append(valid_loss)
@@ -492,6 +493,7 @@ def train():
 
         epoch_results.border = False
         log.info(epoch_results)
+        log.info("\n")
 
         if (epoch + 1) % (args['num_epochs']) == 0:
             log_dict = {
@@ -525,11 +527,11 @@ def train():
                             '{:.4f}'.format(cos_sim_val),
                             '{:.4f}'.format(ssim_err_val * 100),
                             '{:.4f}'.format(ssim_sim_val)]])
-    log.info("Best training loss:\t{:.6f}\t"
-             "Best validation loss:\t{:.6f}\t"
-             "Best cosine loss:\t{:.6f}\t"
-             "Best cosine similarity:\t{:.6f}"
-             "Best SSIM loss:\t{:.6f}\t"
+    log.info("Best training loss:\t{:.6f}\n"
+             "Best validation loss:\t{:.6f}\n"
+             "Best cosine loss:\t{:.6f}\n"
+             "Best cosine similarity:\t{:.6f}\n"
+             "Best SSIM loss:\t{:.6f}\n"
              "Best SSIM similarity:\t{:.6f}\n".format(min(train_losses),
                                                       min(val_losses),
                                                       min(cos_val_losses),
@@ -553,6 +555,10 @@ def evaluate():
     cosineSim.clear()
     ssimLoss.clear()
     ssimSim.clear()
+    cosine_similarity_val_tmp = []
+    cosine_losses_val_tmp = []
+    ssim_similarity_val_tmp = []
+    ssim_losses_val_tmp = []
     log.info("Evaluating model...")
 
     model = WaveNet()
@@ -626,15 +632,11 @@ def evaluate():
                 huber_sum.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='sum')))
                 huber_mean.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='mean')))
                 
-                cosineSim.append(cosine_sim)
-                cosineLoss.append(cosine_loss)
+                cosineSim.append(torch.Tensor.tolist(cosine_sim))
+                cosineLoss.append(torch.Tensor.tolist(cosine_loss))
 
-                ssimLoss.append(ssim_loss_initial)
-                ssimSim.append(ssim_similarity)
-
-#                 test_losses_l1.append(torch.Tensor.tolist(test_l1))
-#                 test_losses_mse.append(torch.Tensor.tolist(test_mse))
-#                 test_losses_huber.append(torch.Tensor.tolist(test_huber))
+                ssimLoss.append(torch.Tensor.tolist(ssim_loss_initial))
+                ssimSim.append(torch.Tensor.tolist(ssim_similarity))
 
     return None
 
@@ -654,7 +656,7 @@ def losses_to_csv(name):
         "SSIM similarity": ssimSim
     }
     df = DataFrame.from_dict(loss_dict)
-    df = df.sort_values(by='L1/MAE (sum)', ascending=True)
+    df = df.sort_values(by='SSIM error', ascending=True)
     log.info(name + ":")
     log.info(df)
 
@@ -670,5 +672,5 @@ evaluate()
 losses_to_csv('results_evaluation')
 
 if args['track']:
-  pathname = preds_tr_path + "/" + args['track'] + "/"
-  make_gif(pathname)
+  pathname = str(preds_tr_path) + "/" + str(args['track']) + "/"
+  make_gif(pathname, str(preds_tr_path), str(args['track']))
