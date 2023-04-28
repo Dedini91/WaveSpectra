@@ -72,9 +72,8 @@ inf_loader.requires_grad = False
 
 print("==========================================================================================")
 # Setup CNN using custom CAE class in models.model.py
-network = CAE()
+network = WaveNet()
 network.to(device)
-writer = SummaryWriter(str(inf_path) + "/logs/")
 
 print(summary(network, (1, 1, 64, 64), verbose=2))
 
@@ -95,7 +94,7 @@ print("=========================================================================
 
 def predict():
     print("Evaluating model...")
-    model = CAE()
+    model = WaveNet()
     model.load_state_dict(torch.load(str(args['model_path'])))
     print("Loading model from supplied model_path: {}".format(str(args['model_path']).replace("\\", '/')))
     model.to(device)
@@ -107,11 +106,6 @@ def predict():
                 data = data.to(device)
                 tepoch.set_description(f"Inference")
                 output = model(data)
-
-                output_min, output_max = output.min(), output.max()
-                target_min, target_max = 0.01, 0.85
-                output = (output - output_min) / (output_max - output_min) * (target_max - target_min) + target_min
-
                 prediction = output.detach().cpu().numpy().squeeze()
 
                 save_prediction(prediction,
