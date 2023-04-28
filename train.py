@@ -271,6 +271,8 @@ image_id, dimensions, l1_sum, l1_mean, l2_sum, l2_mean, huber_sum, huber_mean = 
     [], [], [], [], [], [], [], [],
 
 def train():
+    which_loss = args['loss']
+    switching = True
     ssim = SSIM().cuda() if torch.cuda.is_available() else SSIM()
     last_loss = 0
     best_loss = 0
@@ -284,8 +286,8 @@ def train():
         cosine_similarity_tmp = []
         ssim_losses_tmp = []
         ssim_similarity_tmp = []
-        cosine_similarity_val_tmp, cosine_losses_val_tmp = [], []
-        ssim_similarity_val_tmp, ssim_losses_val_tmp = [], []
+        cosine_similarity_tmp, cosine_losses_tmp = [], []
+        ssim_similarity_tmp, ssim_losses_tmp = [], []
         
         with tqdm(train_loader, unit="batch") as tepoch:
             for data, target, data_index, target_index in tepoch:
@@ -308,9 +310,16 @@ def train():
                 ssim_similarity = ssim(target, output)
                 ssim_loss_initial = 1 - ssim_similarity
 
-                if args['loss'] == 'cosine':
+                if switching:
+                  if (epoch + 1) % 2 == 0:
+                    if which_loss == 'cosine':
+                      which_loss = 'ssim'
+                    elif which_loss == 'ssim':
+                      which_loss = 'cosine'
+
+                if which_loss == 'cosine':
                     loss = cosine_loss
-                elif args['loss'] == 'ssim':
+                elif which_loss == 'ssim':
                     loss = ssim_loss_initial
                 else:
                     loss = loss_function(output, target)  # Calculate loss
@@ -365,56 +374,67 @@ def train():
 
         with torch.no_grad():
             with tqdm(val_loader, unit="batch") as tepoch:
-                for data, target, data_index, target_index in tepoch:
-                    data = data.to(device)
-                    target = target.to(device)
-                    indent = ' ' * len(epoch_counter)
-                    tepoch.set_description(str(indent))
-                    optimizer.zero_grad()
-                    output = network(data)
+              cosine_similarity_val_tmp = []
+              cosine_losses_val_tmp = []
+              ssim_similarity_val_tmp = []
+              ssim_losses_val_tmp = []
 
-                    # Flatten images -> 1D tensors: Compute cosine similarity/loss
-                    target_vec = torch.flatten(target)
-                    output_vec = torch.flatten(output)
-                    cosine_sim = F.cosine_similarity(output_vec, target_vec, dim=0)  # Calculate loss
-                    cosine_loss = 1 - cosine_sim
+              for data, target, data_index, target_index in tepoch:
+                  data = data.to(device)
+                  target = target.to(device)
+                  indent = ' ' * len(epoch_counter)
+                  tepoch.set_description(str(indent))
+                  optimizer.zero_grad()
+                  output = network(data)
 
-                    # Compute SSIM
-                    ssim = SSIM().cuda() if torch.cuda.is_available() else SSIM()
-                    ssim_similarity = ssim(target, output)
-                    ssim_loss_initial = 1 - ssim_similarity
+                  # Flatten images -> 1D tensors: Compute cosine similarity/loss
+                  target_vec = torch.flatten(target)
+                  output_vec = torch.flatten(output)
+                  cosine_sim = F.cosine_similarity(output_vec, target_vec, dim=0)  # Calculate loss
+                  cosine_loss = 1 - cosine_sim
 
-                    if args['loss'] == 'cosine':
-                        loss = cosine_loss
-                    elif args['loss'] == 'ssim':
-                        loss = ssim_loss_initial
-                    else:
-                        loss = loss_function(output, target)  # Calculate loss
-                        
-                    val_losses_tmp.append(torch.Tensor.tolist(loss))
-                    val_losses_iter.append(torch.Tensor.tolist(loss))
-                    cosine_similarity_val_tmp.append(cosine_sim.item() * 100)
-                    cosine_losses_val_tmp.append(cosine_loss.item())
-                    ssim_similarity_val_tmp.append(ssim_similarity * 100)
-                    ssim_losses_val_tmp.append(ssim_loss_initial.item())
-                    
-                    if args['verbose']:
-                        tepoch.set_postfix(loss=loss.item())
-                            
-                    if (epoch + 1) % (args['num_epochs']) == 0:
-                        image_id.append(str(data_index[0]))
-                        l1_sum.append(torch.Tensor.tolist(F.l1_loss(output, target, reduction='sum')))
-                        l1_mean.append(torch.Tensor.tolist(F.l1_loss(output, target, reduction='mean')))
-                        l2_sum.append(torch.Tensor.tolist(F.mse_loss(output, target, reduction='sum')))
-                        l2_mean.append(torch.Tensor.tolist(F.mse_loss(output, target, reduction='mean')))
-                        huber_sum.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='sum')))
-                        huber_mean.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='mean')))
-                        
-                        cosineSim.append(cosine_sim.detach().cpu().numpy())
-                        cosineLoss.append(cosine_loss.detach().cpu().numpy())
+                  # Compute SSIM
+                  ssim = SSIM().cuda() if torch.cuda.is_available() else SSIM()
+                  ssim_similarity = ssim(target, output)
+                  ssim_loss_initial = 1 - ssim_similarity
+                  if switching:
+                    if (epoch + 1) % 2 == 0:
+                      if which_loss == 'cosine':
+                        which_loss = 'ssim'
+                      elif which_loss == 'ssim':
+                        which_loss = 'cosine'
 
-                        ssimLoss.append(ssim_loss_initial.detach().cpu().numpy())
-                        ssimSim.append(ssim_similarity.detach().cpu().numpy())
+                  if which_loss == 'cosine':
+                      loss = cosine_loss
+                  elif which_loss == 'ssim':
+                      loss = ssim_loss_initial
+                  else:
+                      loss = loss_function(output, target)  # Calculate loss
+                      
+                  val_losses_tmp.append(loss)
+                  val_losses_iter.append(loss)
+                  cosine_similarity_val_tmp.append(cosine_sim.item() * 100)
+                  cosine_losses_val_tmp.append(cosine_loss.item())
+                  ssim_similarity_val_tmp.append(ssim_similarity * 100)
+                  ssim_losses_val_tmp.append(ssim_loss_initial.item())
+                  
+                  if args['verbose']:
+                      tepoch.set_postfix(loss=loss.item())
+                          
+                  if (epoch + 1) % (args['num_epochs']) == 0:
+                      image_id.append(str(data_index[0]))
+                      l1_sum.append(torch.Tensor.tolist(F.l1_loss(output, target, reduction='sum')))
+                      l1_mean.append(torch.Tensor.tolist(F.l1_loss(output, target, reduction='mean')))
+                      l2_sum.append(torch.Tensor.tolist(F.mse_loss(output, target, reduction='sum')))
+                      l2_mean.append(torch.Tensor.tolist(F.mse_loss(output, target, reduction='mean')))
+                      huber_sum.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='sum')))
+                      huber_mean.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='mean')))
+                      
+                      cosineSim.append(cosine_sim.detach().cpu().numpy())
+                      cosineLoss.append(cosine_loss.detach().cpu().numpy())
+
+                      ssimLoss.append(ssim_loss_initial.detach().cpu().numpy())
+                      ssimSim.append(ssim_similarity.detach().cpu().numpy())
                         
             prediction = output.detach().cpu().numpy().squeeze()
             if len(prediction.shape) == 2:
@@ -510,8 +530,8 @@ def train():
             if args['verbose']:
                 log.info(df2)
 
-    log.info("\n\nTraining complete!")
-    print("\nBest results:")
+    log.info("\n\nTraining complete!\n")
+
     best_results = PrettyTable(['Train Loss',
                                  'Val Loss',
                                  "Cosine Loss (%)",
@@ -528,7 +548,7 @@ def train():
              "Best validation loss:\t{:.6f}\n"
              "Best cosine loss:\t{:.6f}\n"
              "Best cosine similarity:\t{:.6f}\n"
-             "Best SSIM loss:\t{:.6f}\n"
+             "Best SSIM loss:\t\t{:.6f}\n"
              "Best SSIM similarity:\t{:.6f}\n".format(min(train_losses),
                                                       min(val_losses),
                                                       min(cos_val_losses),
@@ -541,6 +561,8 @@ def train():
 
 
 def evaluate():
+    which_loss = args['loss']
+    switching = True
     image_id.clear()
     l1_sum.clear()
     l1_mean.clear()
@@ -670,4 +692,4 @@ losses_to_csv('results_evaluation')
 
 if args['track']:
   pathname = str(preds_tr_path) + "/" + str(args['track']) + "/"
-  make_gif(pathname, str(preds_tr_path), str(args['track']))
+  make_gif(str(pathname), str(preds_tr_path), str(args['track']))
