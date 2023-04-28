@@ -35,6 +35,8 @@ parser.add_argument("-d", "--data", action="store", type=str, required=True,
                     help="path to processed dataset")
 parser.add_argument("--prototyping", action="store_true", default=False,
                     help="prototyping mode (train on reduced dataset)")
+parser.add_argument("--switching", action="store_true", default=False,
+                    help="when using SSIM or cosine similarity, periodically switches between the two")
 parser.add_argument("--track", action='store', type=str, required=False,
                     help="saves all predictions for a specified source image (file name only e.g. 00178)")
 parser.add_argument("--model_path", action="store", type=str, required=False,
