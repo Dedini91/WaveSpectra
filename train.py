@@ -287,6 +287,13 @@ def train():
         ssim_losses_tmp = []
         ssim_similarity_tmp = []
         
+        if switching:
+          if (epoch + 1) % 2 == 0:
+            if which_loss == 'cosine':
+              which_loss = 'ssim'
+            elif which_loss == 'ssim':
+              which_loss = 'cosine'
+              
         with tqdm(train_loader, unit="batch") as tepoch:
             for data, target, data_index, target_index in tepoch:
                 i += 1
@@ -307,13 +314,6 @@ def train():
                 # Compute SSIM
                 ssim_similarity = ssim(target, output)
                 ssim_loss_initial = 1 - ssim_similarity
-
-                if switching:
-                  if (epoch + 1) % 2 == 0:
-                    if which_loss == 'cosine':
-                      which_loss = 'ssim'
-                    elif which_loss == 'ssim':
-                      which_loss = 'cosine'
 
                 if which_loss == 'cosine':
                     loss = cosine_loss
@@ -372,11 +372,11 @@ def train():
 # =============================================================================#
         with torch.no_grad():
             with tqdm(val_loader, unit="batch") as tepoch:
+              val_losses_tmp = []
               cosine_similarity_val_tmp = []
               cosine_losses_val_tmp = []
               ssim_similarity_val_tmp = []
               ssim_losses_val_tmp = []
-              cosineLoss, cosineSim, ssimLoss, ssimSim = [], [], [], []
               ssim = SSIM().cuda() if torch.cuda.is_available() else SSIM()
 
               for data, target, data_index, target_index in tepoch:
@@ -396,12 +396,6 @@ def train():
                   # Compute SSIM
                   ssim_similarity = ssim(target, output)
                   ssim_loss_initial = 1 - ssim_similarity
-                  if switching:
-                    if (epoch + 1) % 2 == 0:
-                      if which_loss == 'cosine':
-                        which_loss = 'ssim'
-                      elif which_loss == 'ssim':
-                        which_loss = 'cosine'
 
                   if which_loss == 'cosine':
                       loss = cosine_loss
@@ -412,7 +406,7 @@ def train():
                   
                   val_losses_tmp.append(loss.cpu().item())
                   val_losses_iter.append(loss)
-                  cosine_similarity_val_tmp.append(cosine_sim.item() * 100)
+                  cosine_similarity_val_tmp.append(cosine_sim * 100)
                   cosine_losses_val_tmp.append(cosine_loss.item())
                   ssim_similarity_val_tmp.append(ssim_similarity * 100)
                   ssim_losses_val_tmp.append(ssim_loss_initial.item())
@@ -453,9 +447,9 @@ def train():
             print(valid_loss)
             val_losses.append(valid_loss)
             print(val_losses)
-            writer.add_scalar("Loss/cosine_error", cosine_loss.item(), epoch)
-            writer.add_scalar("Loss/cosine_similarity", cosine_sim.item(), epoch)
-            writer.add_scalar("Loss/ssim_error", ssim_loss, epoch)
+            writer.add_scalar("Loss/cosine_error", cosine_loss, epoch)
+            writer.add_scalar("Loss/cosine_similarity", cosine_sim, epoch)
+            writer.add_scalar("Loss/ssim_error", ssim_loss_initial, epoch)
             writer.add_scalar("Loss/ssim_similarity", ssim_similarity, epoch)
             cos_sim_val = get_mean(cosine_similarity_val_tmp[0:n_iter]) / args['batch_size']
             cos_err_val = get_mean(cosine_losses_val_tmp[0:n_iter]) / args['batch_size']
@@ -629,7 +623,6 @@ def evaluate():
                 else:
                     loss = loss_function(output, target)  # Calculate loss
 
-                loss.to('cpu')
                 cosine_similarity_val_tmp.append(cosine_sim.item() * 100)
                 cosine_losses_val_tmp.append(cosine_loss.item())
                 ssim_similarity_val_tmp.append(ssim_similarity * 100)
