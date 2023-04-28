@@ -493,7 +493,7 @@ def train():
         epoch_results.border = False
         log.info(epoch_results)
 
-                if (epoch + 1) % (args['num_epochs']) == 0:
+        if (epoch + 1) % (args['num_epochs']) == 0:
             log_dict = {
                 "Epoch": (epoch + 1),
                 "L1/MAE (sum)": get_mean(l1_sum),
