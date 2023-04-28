@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from utils import clustering, clustering_utils as utils
 import torch
 import warnings
+from k_means_constrained import KMeansConstrained
 
 warnings.filterwarnings('ignore', category=UserWarning, message="The parameter 'pretrained' is deprecated since 0.13 "
                                                                 "and may be removed in the future, please use 'weights'"
@@ -51,15 +52,15 @@ src_paths = {'x_path': str(root_path) + '/raw/Offshore/',
 temp_paths = {'x_path': str(root_path) + '/interim/Offshore/',
               'y_path': str(root_path) + '/interim/NearShore/'}
 
-os.makedirs(str(root_path) + '/interim')
-os.makedirs(str(root_path) + '/interim/Offshore')
-os.makedirs(str(root_path) + '/interim/NearShore')
+# os.makedirs(str(root_path) + '/interim')
+# os.makedirs(str(root_path) + '/interim/Offshore')
+# os.makedirs(str(root_path) + '/interim/NearShore')
 
-for path in src_paths:
-    for i in range(0, numSamples):
-        img = cv.imread(src_paths[path] + str(i) + ".jpg", 0)
-        img_scaled = cv.resize(img, (64, 64), cv.INTER_AREA)
-        cv.imwrite(temp_paths[path] + str(i).zfill(5) + ".jpg", img_scaled)
+# for path in src_paths:
+#     for i in range(0, numSamples):
+#         img = cv.imread(src_paths[path] + str(i) + ".jpg", 0)
+#         img_scaled = cv.resize(img, (64, 64), cv.INTER_AREA)
+#         cv.imwrite(temp_paths[path] + str(i).zfill(5) + ".jpg", img_scaled)
 
 # ----------------------------------------------------------------
 # CLUSTERING
@@ -90,7 +91,14 @@ utils.save_embeddings(vec, embedding_path)
 pca_embeddings = clustering.calculate_pca(embeddings=vec, dim=2)
 
 # PCA -> KMeans
-centroid, labels = clustering.calculate_kmeans(pca_embeddings, k=args['c'])
+clf = KMeansConstrained(
+    n_clusters=args['c'],
+    size_min=args['s'] // 0.8 // 40,        # e.g., for -s = 2400, total images = 3000, min. size = 75
+)
+clf.fit_predict(pca_embeddings)
+centroid = clf.cluster_centers_
+labels = clf.labels_
+# centroid, labels = clustering.calculate_kmeans(pca_embeddings, k=args['c'])
 
 # Save random sample clusters
 for label_number in tqdm(range(args['c'])):
@@ -113,19 +121,27 @@ for label_number in tqdm(range(args['c'])):
 kmeans = KMeans(n_clusters=args['c'])
 
 # Predict cluster labels
-label = kmeans.fit_predict(pca_embeddings)
-
-# Get unique labels
-centroids = kmeans.cluster_centers_
+clf = KMeansConstrained(
+    n_clusters=args['c'],
+    size_min=args['s'] // 0.8 // 40,        # e.g., for -s = 2400, total images = 3000, min. size = 75
+)
+label = clf.fit_predict(pca_embeddings)
+centroids = clf.cluster_centers_
 u_labels = np.unique(label)
-colors = np.array(["red", "green", "blue", "yellow", "pink", "orange",
-                   "purple", "beige", "brown", "gray", "cyan", "magenta"])
+# label = kmeans.fit_predict(pca_embeddings)
+#
+# # Get unique labels
+# centroids = kmeans.cluster_centers_
+# u_labels = np.unique(label)
+# colors = np.array(["red", "green", "blue", "yellow", "pink",
+#                    "orange", "purple", "beige", "brown", "gray",
+#                    "cyan", "magenta", "darkkhaki", "teal", "coral"])
 # Plot results:
 plt.close()
-for (i, j) in zip(u_labels, colors):
-    plt.scatter(pca_embeddings[label == i, 0], pca_embeddings[label == i, 1], label=i, c=j)
+for i in u_labels:
+    plt.scatter(pca_embeddings[label == i, 0], pca_embeddings[label == i, 1], label=i)
 plt.scatter(centroids[:, 0], centroids[:, 1], s=80, color='k')
-plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper left')
+# plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper left')
 plt.tight_layout()
 plt.savefig("data/balanced/KMeans.jpg")
 plt.show()
@@ -170,23 +186,27 @@ print("# of pairs:\t", numSamples, "\nDataset split:\t", lengths)
 # target_directory = f"data/balanced/clusters/{project_name}/cluster_{label_number}"
 # eighty_percent = int(lengths['train'] / args['c'])
 # ten_percent = int(lengths['val'] / args['c'])
-eighty_percent = 40
-ten_percent = 10
-print("# of samples per cluster (train):\t", eighty_percent)
-print("# of samples per cluster (val/test):\t", ten_percent)
+train_percent = args['s'] // 0.8 // 60      # e.g., // 60 = 50 images
+val_percent = args['s'] // 0.8 // 200       # e.g., // 200 = 15 images
+test_percent = args['s'] // 0.8 // 300      # e.g., // 300 = 10 images
+
+print("Minimum cluster size:\t", args['s'] // 0.8 // 40)
+print("# of samples per cluster (train):\t", train_percent)
+print("# of samples per cluster (val):\t\t", val_percent)
+print("# of samples per cluster (test):\t", test_percent)
 
 d = f'data/balanced/clusters/{project_name}'
 subdirs = [os.path.join(d, o) for o in os.listdir(d) if os.path.isdir(os.path.join(d, o))]
 
 for dir in subdirs:
     files = [f for f in os.listdir(dir) if os.path.isfile(dir + '/' + f)]
-    to_copy = random.sample(files, eighty_percent + (2 * ten_percent))
-    for i in range(eighty_percent + (2 * ten_percent)):
-        if i < eighty_percent:
+    to_copy = random.sample(files, int(train_percent + val_percent + test_percent))
+    for i in range(int(train_percent + val_percent + test_percent)):
+        if i < int(train_percent):
             shutil.copy(os.path.join(dir, to_copy[i]), x_dst_paths['x_train'])
-        elif eighty_percent <= i < eighty_percent + ten_percent:
+        elif int(train_percent) <= i < int(train_percent + val_percent):
             shutil.copy(os.path.join(dir, to_copy[i]), x_dst_paths['x_val'])
-        elif eighty_percent + ten_percent <= i < eighty_percent + (ten_percent * 2):
+        elif int(train_percent + val_percent) <= i < int(train_percent + val_percent + test_percent):
             shutil.copy(os.path.join(dir, to_copy[i]), x_dst_paths['x_test'])
 
 # copy corresponding near shore data into y_directories
