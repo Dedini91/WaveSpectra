@@ -274,7 +274,7 @@ image_id, dimensions, l1_sum, l1_mean, l2_sum, l2_mean, huber_sum, huber_mean = 
 
 def train():
     which_loss = args['loss']
-    switching = True
+    switching = args['switching']
     ssim = SSIM().cuda() if torch.cuda.is_available() else SSIM()
     last_loss = 0
     best_loss = 0
@@ -290,7 +290,7 @@ def train():
         ssim_similarity_tmp = []
         
         if switching:
-          if (epoch + 1) % 2 == 0:
+          if (epoch + 1) % 5 == 0:
             if which_loss == 'cosine':
               which_loss = 'ssim'
             elif which_loss == 'ssim':
