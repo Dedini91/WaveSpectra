@@ -38,7 +38,7 @@ parser.add_argument("--device", type=str, default='cuda', choices=['cuda', 'cpu'
                     help="device")
 parser.add_argument("--errmaps", action='store_false', default=True,
                     help="turns off error maps in output files (may speed up evaluation)")
-parser.add_argument("-l", "--loss", action="store", type=str, default='ssim', choices=['l1', 'mse', 'huber', 'cosine', 'ssim],
+parser.add_argument("-l", "--loss", action="store", type=str, default='ssim', choices=['l1', 'mse', 'huber', 'cosine', 'ssim'],
                     help="loss function")
 parser.add_argument("--reduction", action="store", type=str, default='sum', choices=['mean', 'sum', 'none'],
                     help="reduction method")
@@ -143,7 +143,10 @@ log.info("======================================================================
 
 image_id, dimensions, l1_sum, l1_mean, l2_sum, l2_mean, huber_sum, huber_mean = \
     [], [], [], [], [], [], [], [],
-
+cosineLoss = []
+cosineSim = []
+ssimLoss = []
+ssimSim = []
 
 def evaluate():
     image_id.clear()
@@ -223,8 +226,6 @@ def evaluate():
                           torch.Tensor.tolist(test_l1),
                           torch.Tensor.tolist(test_mse),
                           torch.Tensor.tolist(test_huber),
-                          torch.Tensor.tolist(cosine_loss.item()),
-                          torch.Tensor.tolist(ssim_loss_initial.item()),
                           data_index[0],
                           pred_path)
                 i += 1
@@ -246,15 +247,15 @@ def evaluate():
                 huber_sum.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='sum')))
                 huber_mean.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='mean')))
                 
-                cosineSim.append(cosine_sim)
-                cosineLoss.append(cosine_loss)
+                cosineSim.append(torch.Tensor.tolist(cosine_sim))
+                cosineLoss.append(torch.Tensor.tolist(cosine_loss))
 
-                ssimLoss.append(ssim_loss_initial)
-                ssimSim.append(ssim_similarity)
+                ssimLoss.append(torch.Tensor.tolist(ssim_loss_initial))
+                ssimSim.append(torch.Tensor.tolist(ssim_similarity))
 
-                test_losses_l1.append(torch.Tensor.tolist(test_l1))
-                test_losses_mse.append(torch.Tensor.tolist(test_mse))
-                test_losses_huber.append(torch.Tensor.tolist(test_huber))
+                # test_losses_l1.append(torch.Tensor.tolist(test_l1))
+                # test_losses_mse.append(torch.Tensor.tolist(test_mse))
+                # test_losses_huber.append(torch.Tensor.tolist(test_huber))
 
     return None
 
@@ -279,8 +280,7 @@ def losses_to_csv(name):
     log.info(df)
 
     df.to_csv(str(metrics_path) + "/" + name + ".csv", sep=",", float_format="%.6f", header=True, index=False)
-    
-  return None
+    return None
 
 # Execute program
 evaluate()
