@@ -385,7 +385,7 @@ def train():
                     ssim_loss_initial = 1 - ssim_similarity
 
                     if args['loss'] == 'cosine':
-                        loss = cosine_loss.item()
+                        loss = cosine_loss
                     elif args['loss'] == 'ssim':
                         loss = ssim_loss_initial
                     else:
@@ -399,10 +399,7 @@ def train():
                     ssim_losses_val_tmp.append(ssim_loss_initial.item())
                     
                     if args['verbose']:
-                        if args['loss'] == 'cosine':
-                            tepoch.set_postfix(loss=loss)
-                        else:
-                            tepoch.set_postfix(loss=loss.item())
+                        tepoch.set_postfix(loss=loss.item())
                             
                     if (epoch + 1) % (args['num_epochs']) == 0:
                         image_id.append(str(data_index[0]))
