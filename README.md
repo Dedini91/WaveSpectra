@@ -15,7 +15,11 @@ This is a Pytorch implementation of an unsupervised image to image convolutional
 
 Normalised offshore (source) and near shore (target) spectra are passed through a 55-layer network, which returns an image via a sigmoid activation in the final layer.
 
-As the output tensor's dimensions match those of the input, the raw weights of the terminal layer can be treated as pixel activations.
+The raw weights of the terminal layer can be treated as pixel activations.
+
+<p align="center">
+   <img src="assets/training.gif" alt="Tracked training sample" style="height: 200px; width:200px;"/>
+</p>
 
 > If running on Colab or similar, follow the included .ipynb walkthrough notebook
 
@@ -122,6 +126,10 @@ Run the preprocessing script to obtain the following directory tree **(ensure .N
 tensorboard --logdir="path/to/logs_folder/"
 ```
 
+<p align="center">
+   <img src="assets/losses.jpg" alt="Train_val_losses" style="height: 200px; width:200px;"/>
+</p>
+
 ---
 
 ## 3. **Evaluation**
@@ -166,5 +174,3 @@ Evaluation produces single and comparison images for each sample in the test set
 * Add support for:
    * Entering custom image sizes
    * Resuming training from checkpoint
-   * Switch to constrained k-means <- fix hardcoded clustering parameters
-   * Add SSIM and Cosine similarity to error maps
