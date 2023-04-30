@@ -18,7 +18,7 @@ Normalised offshore (source) and near shore (target) spectra are passed through 
 The raw weights of the terminal layer can be treated as pixel activations.
 
 <p align="center">
-   <img src="assets/training.gif" alt="Tracked training sample" style="height: 200px; width:200px;"/>
+   <img src="assets/training.gif" alt="Tracked training sample" style="height: 400px; width:400px;"/>
 </p>
 
 > If running on Colab or similar, follow the included .ipynb walkthrough notebook
@@ -127,7 +127,7 @@ tensorboard --logdir="path/to/logs_folder/"
 ```
 
 <p align="center">
-   <img src="assets/losses.jpg" alt="Train_val_losses" style="height: 200px; width:200px;"/>
+   <img src="assets/losses.jpg" alt="Train_val_losses" style="height: 400px; width:400px;"/>
 </p>
 
 ---
