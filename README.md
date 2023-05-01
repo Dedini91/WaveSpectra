@@ -174,3 +174,4 @@ Evaluation produces single and comparison images for each sample in the test set
 * Add support for:
    * Entering custom image sizes
    * Resuming training from checkpoint
+   * Incorrect values in summary of best losses at end of training
