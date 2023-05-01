@@ -35,7 +35,7 @@ def make_gif(frame_folder, savepath, foldername):
     frames = [Image.open(image) for image in glob(f"{frame_folder}/*.jpg")]
     frame_one = frames[0]
     frame_one.save(pathname + "training.gif", format="gif", append_images=frames,
-                   save_all=True, duration=100, loop=0)
+                   save_all=True, duration=200, loop=0)
     return None
 
 
@@ -56,7 +56,7 @@ def save_sample(data, target, prediction, epoch, filename, root_path):
     plt.imshow(prediction[:, :].squeeze(), cmap="gray")
     plt.suptitle("Output: Epoch " + str(epoch + 1))
     plt.tight_layout()
-    
+
     epoch_str = "epoch_" + epoch_str
     filename_path = str(filename)
     pathname = "/predictions/" + "training/" + filename_path + "/" + epoch_str
@@ -64,15 +64,15 @@ def save_sample(data, target, prediction, epoch, filename, root_path):
 
     if not os.path.exists(os.path.dirname(fullpath)):
       os.mkdir(os.path.dirname(fullpath))
-    
+
     plt.savefig(fullpath + ".jpg")
     plt.close()
-    
+
     return None
 
 
 def save_examples(x_data, y_data, z_data, mode, epoch, filename, root_path, batch):
-    
+
     if batch > 1:
       for i in range(len(filename)):
           plt.subplot(131, title='Source', xticks=[], yticks=[])
