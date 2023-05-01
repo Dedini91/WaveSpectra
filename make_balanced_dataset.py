@@ -52,15 +52,15 @@ src_paths = {'x_path': str(root_path) + '/raw/Offshore/',
 temp_paths = {'x_path': str(root_path) + '/interim/Offshore/',
               'y_path': str(root_path) + '/interim/NearShore/'}
 
-# os.makedirs(str(root_path) + '/interim')
-# os.makedirs(str(root_path) + '/interim/Offshore')
-# os.makedirs(str(root_path) + '/interim/NearShore')
+os.makedirs(str(root_path) + '/interim')
+os.makedirs(str(root_path) + '/interim/Offshore')
+os.makedirs(str(root_path) + '/interim/NearShore')
 
-# for path in src_paths:
-#     for i in range(0, numSamples):
-#         img = cv.imread(src_paths[path] + str(i) + ".jpg", 0)
-#         img_scaled = cv.resize(img, (64, 64), cv.INTER_AREA)
-#         cv.imwrite(temp_paths[path] + str(i).zfill(5) + ".jpg", img_scaled)
+for path in src_paths:
+    for i in range(0, numSamples):
+        img = cv.imread(src_paths[path] + str(i) + ".jpg", 0)
+        img_scaled = cv.resize(img, (64, 64), cv.INTER_AREA)
+        cv.imwrite(temp_paths[path] + str(i).zfill(5) + ".jpg", img_scaled)
 
 # ----------------------------------------------------------------
 # CLUSTERING
@@ -69,11 +69,11 @@ img2vec = Img2Vec(cuda=True if torch.cuda.is_available() else False)
 DIR_PATH = str(root_path) + "/interim/Offshore"
 
 project_name = str(args['name'])
-embedding_path = f"data/balanced/embeddings/{project_name}.pt"
-clusters_directory = f"data/balanced/clusters/{project_name}"
+embedding_path = f"data/clustered/embeddings/{project_name}.pt"
+clusters_directory = f"data/clustered/clusters/{project_name}"
 
 # Create required directories
-required_dirs = ["data/balanced/embeddings", "data/balanced/clusters"]
+required_dirs = ["data/clustered/embeddings", "data/clustered/clusters"]
 for dir in required_dirs:
     utils.create_dir(dir)
 utils.create_dir(clusters_directory)
@@ -98,7 +98,6 @@ clf = KMeansConstrained(
 clf.fit_predict(pca_embeddings)
 centroid = clf.cluster_centers_
 labels = clf.labels_
-# centroid, labels = clustering.calculate_kmeans(pca_embeddings, k=args['c'])
 
 # Save random sample clusters
 for label_number in tqdm(range(args['c'])):
@@ -107,7 +106,7 @@ for label_number in tqdm(range(args['c'])):
     utils.create_image_grid(label_images, project_name, label_number)
 
     path_images = list(compress(images, label_mask))
-    target_directory = f"data/balanced/clusters/{project_name}/cluster_{label_number}"
+    target_directory = f"data/clustered/clusters/{project_name}/cluster_{label_number}"
     utils.create_dir(target_directory)
 
     # Copy images into separate directories
@@ -125,17 +124,12 @@ clf = KMeansConstrained(
     n_clusters=args['c'],
     size_min=args['s'] // 0.8 // 40,        # e.g., for -s = 2400, total images = 3000, min. size = 75
 )
+
+# Get unique labels
 label = clf.fit_predict(pca_embeddings)
 centroids = clf.cluster_centers_
 u_labels = np.unique(label)
-# label = kmeans.fit_predict(pca_embeddings)
-#
-# # Get unique labels
-# centroids = kmeans.cluster_centers_
-# u_labels = np.unique(label)
-# colors = np.array(["red", "green", "blue", "yellow", "pink",
-#                    "orange", "purple", "beige", "brown", "gray",
-#                    "cyan", "magenta", "darkkhaki", "teal", "coral"])
+
 # Plot results:
 plt.close()
 for i in u_labels:
@@ -143,7 +137,7 @@ for i in u_labels:
 plt.scatter(centroids[:, 0], centroids[:, 1], s=80, color='k')
 # plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper left')
 plt.tight_layout()
-plt.savefig("data/balanced/KMeans.jpg")
+plt.savefig("data/clustered/KMeans.jpg")
 plt.show()
 plt.close()
 
@@ -181,21 +175,17 @@ numSamples = lengths["train"] + lengths["val"] + lengths["test"]    # total data
 
 print("# of pairs:\t", numSamples, "\nDataset split:\t", lengths)
 
-# FIX HARDCODED VALUES
-# list all files in dir
-# target_directory = f"data/balanced/clusters/{project_name}/cluster_{label_number}"
-# eighty_percent = int(lengths['train'] / args['c'])
-# ten_percent = int(lengths['val'] / args['c'])
+# Can change these to hardcoded values
 train_percent = args['s'] // 0.8 // 60      # e.g., // 60 = 50 images
 val_percent = args['s'] // 0.8 // 200       # e.g., // 200 = 15 images
 test_percent = args['s'] // 0.8 // 300      # e.g., // 300 = 10 images
 
-print("Minimum cluster size:\t", args['s'] // 0.8 // 40)
+print("Minimum cluster size:\t", train_percent + val_percent + test_percent)
 print("# of samples per cluster (train):\t", train_percent)
 print("# of samples per cluster (val):\t\t", val_percent)
 print("# of samples per cluster (test):\t", test_percent)
 
-d = f'data/balanced/clusters/{project_name}'
+d = f'data/clustered/clusters/{project_name}'
 subdirs = [os.path.join(d, o) for o in os.listdir(d) if os.path.isdir(os.path.join(d, o))]
 
 for dir in subdirs:
