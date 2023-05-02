@@ -18,7 +18,7 @@ from torchinfo import summary
 
 from utils.ssim import SSIM
 from utils.utils import *
-from models.model import *
+from models.WaveNet import WaveNet
 from utils.dataset import WaveSpectra
 
 warnings.filterwarnings('ignore', category=UserWarning, message='TypedStorage is deprecated')
