@@ -553,7 +553,7 @@ def train():
 
     log.info("Best training loss:\t{:.6f}\n"
              "Best validation loss:\t{:.6f}\n"
-             "Best l1 loss:\t{:.6f}\n"
+             "Best l1 loss:\t\t{:.6f}\n"
              "Best cosine loss:\t{:.6f}\n"
              "Best cosine similarity:\t{:.6f}\n"
              "Best SSIM loss:\t\t{:.6f}\n"
