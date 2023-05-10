@@ -16,10 +16,10 @@ from torch.utils.data import Dataset, DataLoader
 from prettytable import PrettyTable
 from torchinfo import summary
 from torch.utils.tensorboard import SummaryWriter
-from utils.ssim import SSIM
+from torchmetrics import StructuralSimilarityIndexMeasure, CosineSimilarity, MeanAbsoluteError
 
 from models.WaveNet import WaveNet
-from utils.dataset import WaveSpectra
+from utils.dataset import WaveSpectra, pad_img
 from utils.utils import *
 
 warnings.filterwarnings('ignore', category=UserWarning, message='TypedStorage is deprecated')
@@ -41,24 +41,17 @@ parser.add_argument("--model_path", action="store", type=str, required=False,
                     help="path to saved model and optimiser .pth files")
 parser.add_argument("--device", type=str, default='cuda', choices=['cuda', 'cpu'],
                     help="device")
-parser.add_argument("-e", "--num-epochs", type=int, default=100,
+parser.add_argument("-e", "--num-epochs", type=int, default=20,
                     help="number of epochs")
 parser.add_argument("-b", "--batch-size", type=int, default=1,
                     help="batch size")
-parser.add_argument("--lr", "--learning_rate", type=float, default=0.00005,
+parser.add_argument("--lr", "--learning_rate", type=float, default=0.00002,
                     help="learning rate")
-parser.add_argument("-o", "--optimizer", action="store", type=str, default='adamw', choices=['adam', 'adamw', 'SGD'],
-                    help="optimizer")
-parser.add_argument("-l", "--loss", action="store", type=str, default='ssim',
-                    choices=['l1', 'mse', 'huber', 'cosine', 'ssim'],
-                    help="loss function")
-parser.add_argument("--reduction", action="store", type=str, default='sum', choices=['mean', 'sum', 'none'],
-                    help="reduction method")
 parser.add_argument("-m", "--momentum", type=float, default=0.9,
                     help="momentum for SGD, beta1 for adam")
 parser.add_argument("--scheduler", action="store_false", default=True,
                     help="learning rate scheduler - cosine annealing (pass argument to disable)")
-parser.add_argument("--lr_min", action="store", type=float, default=0.00001,
+parser.add_argument("--lr_min", action="store", type=float, default=0.000005,
                     help="minimum learning rate for scheduler")
 parser.add_argument("--decay", type=float, default=0.0,
                     help="weight decay rate (default off)")
@@ -135,8 +128,7 @@ if args["prototyping"]:  # Reduced for testing
     y_val_paths = glob(args['data'] + '/red_y_val/*.jpg')
     x_test_paths = glob(args['data'] + '/red_x_test/*.jpg')
     y_test_paths = glob(args['data'] + '/red_y_test/*.jpg')
-
-elif not args["prototyping"]:
+else:
     x_train_paths = glob(args['data'] + '/x_train/*.jpg')
     y_train_paths = glob(args['data'] + '/y_train/*.jpg')
     x_val_paths = glob(args['data'] + '/x_val/*.jpg')
@@ -161,18 +153,25 @@ val_loader.requires_grad = False
 test_loader.requires_grad = False
 
 # Save example image(s) from train set
-x_train_sample, y_train_sample, x_train_index, y_train_index = next(iter(train_loader))
-x_val_sample, y_val_sample, x_val_index, y_val_index = next(iter(val_loader))
-x_test_sample, y_test_sample, x_test_index, y_test_index = next(iter(test_loader))
+x_train_sample, y_train_sample, x_train_index, y_train_index, x_train_orig = next(iter(train_loader))
+x_val_sample, y_val_sample, x_val_index, y_val_index, x_val_orig = next(iter(val_loader))
+x_test_sample, y_test_sample, x_test_index, y_test_index, x_test_orig = next(iter(test_loader))
 
 num_sample_images = 3 if args['batch_size'] >= 3 else args['batch_size']
 for i in range(num_sample_images):
-    plt.subplot(121, title='Offshore', xticks=[], yticks=[])
-    plt.imshow(x_train_sample[i].squeeze(), cmap="gray")
-    plt.subplot(122, title='Near Shore', xticks=[], yticks=[])
+    plt.subplot(1, 3, 1)
+    plt.title("Offshore")
+    plt.xticks([])
+    plt.yticks([])
+    plt.imshow(x_train_orig[i].squeeze(), cmap="gray")
+
+    plt.subplot(1, 3, (2, 3))
+    plt.title("Near Shore")
+    plt.xticks([])
+    plt.yticks([])
     plt.imshow(y_train_sample[i].squeeze(), cmap="gray")
+
     plt.suptitle("Example training data (normalised)")
-    plt.tight_layout()
     plt.savefig(str(filepath) + "/sample_train" + str(i) + ".jpg")
     plt.close()
 
@@ -180,11 +179,11 @@ log.info("======================================================================
 # Display basic dataset information
 if args['verbose']:
     # Precomputed values: RECALCULATE FOR YOUR DATASET WHEN PREPROCESSING
-    mean = 0.1176469
-    std = 0.00040002
+    # mean = 0.1176469
+    # std = 0.00040002
 
     # Tabulate dataset info
-    xtr1 = x_train_sample[0].squeeze()
+    xtr1 = x_train_orig[0].squeeze()
     ytr1 = y_train_sample[0].squeeze()
     xva1 = x_val_sample[0].squeeze()
     yva1 = y_val_sample[0].squeeze()
@@ -201,7 +200,7 @@ if args['verbose']:
     )
 
     log.info("Basic dataset information:")
-    log.info("Train set mean/std:\t" + str(mean) + "/" + str(std))
+    # log.info("Train set mean/std:\t" + str(mean) + "/" + str(std))
     log.info(t1)
 
 log.info("==========================================================================================")
@@ -211,7 +210,7 @@ network.to(device)
 writer = SummaryWriter(str(str(filepath) + "/logs/"))
 
 if args['verbose']:
-    log.debug(summary(network, (args['batch_size'], 1, 64, 64), verbose=2))
+    log.debug(summary(network, (args['batch_size'], 1, 29, 24), verbose=2))
 
 for param in network.parameters():
     param.requires_grad = True
@@ -226,21 +225,10 @@ if args['verbose']:
     log.info("# iterations: " + str(n_iter))
 
 log.info("==========================================================================================")
-# Set up training based on user-specified parameters
-if str(args['optimizer']) == 'adam':
-    optimizer = optim.Adam(network.parameters(),
-                           lr=float(args['lr']),
-                           betas=(args['momentum'], 0.999), )
-elif str(args['optimizer']) == 'adamw':
-    optimizer = optim.AdamW(network.parameters(),
-                            lr=float(args['lr']),
-                            betas=(args['momentum'], 0.999),
-                            weight_decay=args['decay'])
-elif str(args['optimizer']) == 'SGD':
-    optimizer = optim.SGD(network.parameters(),
-                          lr=float(args['lr']),
-                          momentum=args['momentum'],
-                          weight_decay=args['decay'])
+optimizer = optim.AdamW(network.parameters(),
+                        lr=float(args['lr']),
+                        betas=(args['momentum'], 0.999),
+                        weight_decay=args['decay'])
 
 if args['scheduler']:
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args['num_epochs'], eta_min=args['lr_min'])
@@ -248,45 +236,81 @@ if args['scheduler']:
         log.info("Using cosine learning rate annealing:")
         log.info("Max lr: {} - Min lr: {}".format(float(args['lr']), float(args['lr_min'])))
 
-if args['loss'] == 'l1':
-    loss_function = torch.nn.L1Loss(reduction=str(args['reduction']))
-    torch.nn.L1Loss()
-if args['loss'] == 'mse':
-    loss_function = torch.nn.MSELoss(reduction=(str(args['reduction'])))
-if args['loss'] == 'huber':
-    loss_function = torch.nn.HuberLoss(reduction=str(args['reduction']))
-
 test_interval = args['interval']
 
 log.info('Setup complete!\n')
 log.info("==========================================================================================")
 log.info("==========================================================================================")
 
-cos_losses, cos_sims, ssim_losses, ssim_sims = [], [], [], []
-ssimLoss, ssimSim, ssim_val_losses, ssim_val_sim = [], [], [], []
-cosineLoss, cosineSim, cos_val_losses, cos_val_sim = [], [], [], []
-train_losses, val_losses, train_losses_iter, val_losses_iter = [], [], [], []
-image_id, dimensions, l1_sum, l1_mean, l2_sum, l2_mean, huber_sum, huber_mean = \
-    [], [], [], [], [], [], [], [],
+ssimLoss, ssimSim = [], []
+cosineLoss, cosineSim = [], []
+image_id, dimensions, l1_sum = [], [], []
+
+training_losses, validation_losses = [], []
+l1_training_losses, l1_validation_losses = [], []
+cosine_training_losses, ssim_training_losses = [], []
+cosine_validation_losses, ssim_validation_losses = [], []
+cosine_training_similarities, ssim_training_similarities = [], []
+cosine_validation_similarities, ssim_validation_similarities = [], []
+
+ssim = StructuralSimilarityIndexMeasure(reduction='elementwise_mean')
+cos = CosineSimilarity(reduction='mean')
+mae = MeanAbsoluteError()
+l1 = torch.nn.L1Loss(reduction='sum')
+
+if args['track']:
+    x_track_orig = Image.open('data/processed/x_train/' + str(args['track']) + '.jpg')
+    y_track = Image.open('data/processed/y_train/' + str(args['track']) + '.jpg')
+
+    x_track_orig = transformations(x_track_orig).to(device)
+    x_padded = pad_img(x_track_orig).to(device)
+    y_track = transformations(y_track).to(device)
+
+l1_start_epoch = 0
 
 
 def train():
-    ssim = SSIM().cuda() if torch.cuda.is_available() else SSIM()
     last_loss = 0
     best_loss = 0
+    no_improvement = 0
     log.info("Training Model...")
+    check_l1 = True
+    add_l1 = False
 
     for epoch in range(args['num_epochs']):
+        if epoch > 1 and epoch % 5 == 0:
+            plot_losses(metrics_path, training_losses, validation_losses)
+            plot_l1_losses(metrics_path, l1_training_losses, l1_validation_losses)
+            plot_ssim_losses(metrics_path, ssim_training_losses, ssim_validation_losses)
+            plot_cosine_losses(metrics_path, cosine_training_losses, cosine_validation_losses)
+            plot_ssim_similarities(metrics_path, ssim_training_similarities, ssim_validation_similarities)
+            plot_cosine_similarities(metrics_path, cosine_training_similarities, cosine_validation_similarities)
+
+        if no_improvement == 5:
+            print("Adding L1 loss...")
+            add_l1 = True
+            check_l1 = False
+            global l1_start_epoch
+            l1_start_epoch = epoch
+
         i = 0
-        train_losses_tmp = []
-        val_losses_tmp = []
-        cosine_losses_tmp = []
-        cosine_similarity_tmp = []
-        ssim_losses_tmp = []
-        ssim_similarity_tmp = []
+
+        training_loss = 0
+        l1_training_loss = 0
+        ssim_training_loss = 0
+        cosine_training_loss = 0
+        ssim_training_similarity = 0
+        cosine_training_similarity = 0
+
+        validation_loss = 0
+        l1_validation_loss = 0
+        ssim_validation_loss = 0
+        cosine_validation_loss = 0
+        ssim_validation_similarity = 0
+        cosine_validation_similarity = 0
 
         with tqdm(train_loader, unit="batch") as tepoch:
-            for data, target, data_index, target_index in tepoch:
+            for data, target, data_index, target_index, data_orig in tepoch:
                 i += 1
                 data = data.to(device)
                 target = target.to(device)
@@ -295,65 +319,73 @@ def train():
                 optimizer.zero_grad()  # Clear gradients
                 output = network(data)  # Forward pass
 
-                # Compute cosine similarity
-                target_vec = torch.flatten(target)
-                output_vec = torch.flatten(output)
-
-                cosine_sim = F.cosine_similarity(output_vec, target_vec, dim=0)  # Calculate loss
-                cosine_loss = 1 - cosine_sim
+                # Compute cosine similarity:
+                target_vec = torch.flatten(target, start_dim=1, end_dim=3)
+                output_vec = torch.flatten(output, start_dim=1, end_dim=3)
+                cosine_similarity = cos(output_vec, target_vec)  # Calculate loss
+                cosine_loss = 1 - cosine_similarity
 
                 # Compute SSIM
-                ssim_similarity = ssim(target, output)
-                ssim_loss_initial = 1 - ssim_similarity
+                ssim_similarity = ssim(output, target)
+                ssim_loss = 1 - ssim_similarity
 
-                if args['loss'] == 'similarity':
-                    loss = cosine_loss + ssim_loss_initial
+                # Compute l1 loss
+                l1_loss = l1(output, target) / args['batch_size']
+
+                if not add_l1:
+                    loss = cosine_loss + ssim_loss
                 else:
-                    loss = loss_function(output, target)  # Calculate loss
+                    loss = cosine_loss + ssim_loss + (l1_loss * 0.01)
 
                 loss.backward()  # Calculate gradients
-                
-                train_losses_tmp.append(loss.detach().cpu().item())
-                cosine_similarity_tmp.append(cosine_sim.item() * 100)
-                cosine_losses_tmp.append(cosine_loss.item())
-                ssim_similarity_tmp.append(ssim_similarity.detach() * 100)
-                ssim_losses_tmp.append(ssim_loss_initial.item())
-
                 optimizer.step()  # Update weights
+
+                training_loss += loss.item()
+                l1_training_loss += l1_loss.item()
+                ssim_training_loss += ssim_loss.item()
+                cosine_training_loss += cosine_loss.item()
+                ssim_training_similarity += ssim_similarity.item()
+                cosine_training_similarity += cosine_similarity.item()
 
                 if args['verbose']:
                     tepoch.set_postfix(loss=loss.item())
-                if str(args['track']) == data_index[0].split('.')[0]:
-                    save_sample(data.detach().cpu().numpy(), target.detach().cpu().numpy(),
-                                output.detach().cpu().numpy().squeeze(), epoch, args['track'], filepath)
 
-        train_loss = get_mean(train_losses_tmp[0:n_iter])
-        train_losses.append(train_loss)
-        
-        cos_loss = get_mean(cosine_losses_tmp[0:n_iter])
-        cos_losses.append(cos_loss)
-        
-        cos_sim = get_mean(cosine_similarity_tmp[0:n_iter])
-        cos_sims.append(cos_sim)
-        
-        ssim_loss = get_mean(ssim_losses_tmp[0:n_iter])
-        ssim_losses.append(ssim_loss)
-        
-        ssim_sim = get_mean(ssim_similarity_tmp[0:n_iter])
-        ssim_sims.append(ssim_sim)
-        
+        # if str(args['track']) == data_index[0].split('.')[0]:
+        if str(args['track']):
+            z_track = network(x_padded.unsqueeze(dim=0))
+
+            save_sample(x_track_orig.detach().cpu().numpy(),
+                        y_track.detach().cpu().numpy(),
+                        z_track.detach().cpu().numpy().squeeze(),
+                        epoch,
+                        args['track'],
+                        filepath)
+
+        training_loss /= n_iter
+        l1_training_loss /= n_iter
+        ssim_training_loss /= n_iter
+        cosine_training_loss /= n_iter
+        ssim_training_similarity /= n_iter
+        cosine_training_similarity /= n_iter
+
+        training_losses.append(training_loss)
+        l1_training_losses.append(l1_training_loss)
+        ssim_training_losses.append(ssim_training_loss)
+        cosine_training_losses.append(cosine_training_loss)
+        ssim_training_similarities.append(ssim_training_similarity)
+        cosine_training_similarities.append(cosine_training_similarity)
+
         lr_schedule = optimizer.param_groups[0]["lr"]
-        
-        writer.add_scalar("Loss/train", loss, epoch)
-        writer.add_scalar("Loss/cosine_error", cosine_loss.item(), epoch)
-        writer.add_scalar("Loss/cosine_similarity", cosine_sim.item(), epoch)
+
         writer.add_scalar("Learning rate/Cosine", lr_schedule, epoch)
+
         if args['scheduler']:
             scheduler.step()
 
         prediction = output.detach().cpu().numpy().squeeze()
         train_path = (str(filepath) + "/predictions/" + "training/" + 'epoch_{}'.format(epoch + 1)).replace('\\', '/')
         val_path = (str(filepath) + "/predictions/" + "validation/" + 'epoch_{}'.format(epoch + 1)).replace('\\', '/')
+
         if not os.path.exists(train_path):
             os.mkdir(train_path)
         if not os.path.exists(val_path):
@@ -363,20 +395,20 @@ def train():
             prediction_fixed = np.expand_dims(prediction, axis=0)
             prediction = prediction_fixed
 
-        save_examples(data.detach().cpu().numpy().squeeze(), target.detach().cpu().numpy().squeeze(), prediction,
-                      'Training', epoch, data_index, filepath, args['batch_size'])
+        save_examples(data_orig.detach().cpu().numpy().squeeze(),
+                      target.detach().cpu().numpy().squeeze(),
+                      prediction,
+                      'Training',
+                      epoch,
+                      data_index,
+                      filepath,
+                      args['batch_size'])
 
         # =============================================================================#
+        iters = 0
         with torch.no_grad():
             with tqdm(val_loader, unit="batch") as tepoch:
-                val_losses_tmp = []
-                cosine_similarity_val_tmp = []
-                cosine_losses_val_tmp = []
-                ssim_similarity_val_tmp = []
-                ssim_losses_val_tmp = []
-                ssim = SSIM().cuda() if torch.cuda.is_available() else SSIM()
-
-                for data, target, data_index, target_index in tepoch:
+                for data, target, data_index, target_index, data_orig in tepoch:
                     data = data.to(device)
                     target = target.to(device)
                     indent = ' ' * len(epoch_counter)
@@ -385,51 +417,49 @@ def train():
                     output = network(data)
 
                     # Flatten images -> 1D tensors: Compute cosine similarity/loss
-                    target_vec = torch.flatten(target)
-                    output_vec = torch.flatten(output)
-                    cosine_sim = F.cosine_similarity(output_vec, target_vec, dim=0)  # Calculate loss
-                    cosine_loss = 1 - cosine_sim
+                    target_vec = torch.flatten(target, start_dim=1, end_dim=3)
+                    output_vec = torch.flatten(output, start_dim=1, end_dim=3)
+                    cosine_similarity = cos(output_vec, target_vec)
+                    cosine_loss = 1 - cosine_similarity
 
                     # Compute SSIM
                     ssim_similarity = ssim(target, output)
-                    ssim_loss_initial = 1 - ssim_similarity
+                    ssim_loss = 1 - ssim_similarity
 
-                    if args['loss'] == 'similarity':
-                        loss = cosine_loss + ssim_loss_initial
+                    # Compute l1 loss
+                    l1_loss = l1(output, target) / args['batch_size']
+
+                    if not add_l1:
+                        loss = cosine_loss + ssim_loss
                     else:
-                        loss = loss_function(output, target)  # Calculate loss
+                        loss = cosine_loss + ssim_loss + (l1_loss * 0.01)
 
-                    val_losses_tmp.append(loss.cpu().item())
-                    cosine_similarity_val_tmp.append(cosine_sim.item() * 100)
-                    cosine_losses_val_tmp.append(cosine_loss.item())
-                    ssim_similarity_val_tmp.append(ssim_similarity.detach() * 100)
-                    ssim_losses_val_tmp.append(ssim_loss_initial.item())
+                    validation_loss += loss.item()
+                    l1_validation_loss += l1_loss.item()
+                    ssim_validation_loss += ssim_loss.item()
+                    cosine_validation_loss += cosine_loss.item()
+                    ssim_validation_similarity += ssim_similarity.item()
+                    cosine_validation_similarity += cosine_similarity.item()
 
-                    if args['verbose']:
-                        tepoch.set_postfix(loss=loss.item())
+                    tepoch.set_postfix(loss=loss.item())
 
                     if (epoch + 1) % (args['num_epochs']) == 0:
                         image_id.append(str(data_index[0]))
-                        l1_sum.append(torch.Tensor.tolist(F.l1_loss(output, target, reduction='sum').detach()))
-                        l1_mean.append(torch.Tensor.tolist(F.l1_loss(output, target, reduction='mean').detach()))
-                        l2_sum.append(torch.Tensor.tolist(F.mse_loss(output, target, reduction='sum').detach()))
-                        l2_mean.append(torch.Tensor.tolist(F.mse_loss(output, target, reduction='mean').detach()))
-                        huber_sum.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='sum').detach()))
-                        huber_mean.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='mean').detach()))
-
-                        cosineSim.append(cosine_sim.detach().cpu().numpy())
+                        l1_sum.append(l1_loss.item())
+                        cosineSim.append(cosine_similarity.detach().cpu().numpy())
                         cosineLoss.append(cosine_loss.detach().cpu().numpy())
-
-                        ssimLoss.append(ssim_loss_initial.detach().cpu().numpy())
+                        ssimLoss.append(ssim_loss.detach().cpu().numpy())
                         ssimSim.append(ssim_similarity.detach().cpu().numpy())
 
+                    iters += 1  # for calculating means across validation iterations
+
             prediction = output.detach().cpu().numpy().squeeze()
-            
+
             if len(prediction.shape) == 2:
                 prediction_fixed = np.expand_dims(prediction, axis=0)
                 prediction = prediction_fixed
-                
-            save_examples(data.detach().cpu().numpy().squeeze(),
+
+            save_examples(data_orig.detach().cpu().numpy().squeeze(),
                           target.detach().cpu().numpy().squeeze(),
                           prediction,
                           'Validation',
@@ -437,30 +467,37 @@ def train():
                           data_index,
                           filepath,
                           args['batch_size'])
-            writer.add_scalar("Loss/validation", loss / args['batch_size'], epoch)
-            valid_loss = get_mean(val_losses_tmp[0:n_iter]) / args['batch_size']
-            val_losses.append(valid_loss)
-            writer.add_scalar("Loss/cosine_error", cosine_loss, epoch)
-            writer.add_scalar("Loss/cosine_similarity", cosine_sim, epoch)
-            writer.add_scalar("Loss/ssim_error", ssim_loss_initial, epoch)
-            writer.add_scalar("Loss/ssim_similarity", ssim_similarity, epoch)
-            cos_sim_val = get_mean(cosine_similarity_val_tmp[0:n_iter]) / args['batch_size']
-            cos_err_val = get_mean(cosine_losses_val_tmp[0:n_iter]) / args['batch_size']
-            ssim_sim_val = get_mean(ssim_similarity_val_tmp[0:n_iter]) / args['batch_size']
-            ssim_err_val = get_mean(ssim_losses_val_tmp[0:n_iter]) / args['batch_size']
-            cos_val_losses.append(cos_err_val)
-            cos_val_sim.append(cos_sim_val)
-            ssim_val_losses.append(ssim_err_val)
-            ssim_val_sim.append(ssim_sim_val)
 
-            writer.add_scalars('Training Losses', {'Train_loss': train_loss,
-                                                   'Valid_loss': valid_loss},
+            writer.add_scalar("Loss/validation", loss, epoch)
+
+            validation_loss /= iters
+            l1_validation_loss /= iters
+            ssim_validation_loss /= iters
+            cosine_validation_loss /= iters
+            ssim_validation_similarity /= iters
+            cosine_validation_similarity /= iters
+
+            validation_losses.append(validation_loss)
+            l1_validation_losses.append(l1_validation_loss)
+            ssim_validation_losses.append(ssim_validation_loss)
+            cosine_validation_losses.append(cosine_validation_loss)
+            ssim_validation_similarities.append(ssim_validation_similarity)
+            cosine_validation_similarities.append(cosine_validation_similarity)
+
+            writer.add_scalar("Loss/l1_loss", l1_validation_loss, epoch)
+            writer.add_scalar("Loss/ssim_error", ssim_validation_loss, epoch)
+            writer.add_scalar("Loss/cosine_error", cosine_validation_loss, epoch)
+            writer.add_scalar("Loss/ssim_similarity", ssim_validation_similarity, epoch)
+            writer.add_scalar("Loss/cosine_similarity", cosine_validation_similarity, epoch)
+
+            writer.add_scalars('Training Losses', {'Train_loss': training_loss,
+                                                   'Valid_loss': validation_loss},
                                global_step=epoch)
-            writer.add_scalars('Similarity (%)', {'SSIM (%)': ssim_sim_val,
-                                                  'Cosine (%)': cos_sim_val},
+            writer.add_scalars('Similarity', {'SSIM': ssim_validation_similarity,
+                                              'Cosine': cosine_validation_similarity},
                                global_step=epoch)
-            writer.add_scalars('Error (%)', {'SSIM (%)': ssim_err_val,
-                                             'Cosine (%)': cos_err_val},
+            writer.add_scalars('Error', {'SSIM': ssim_validation_loss,
+                                         'Cosine': cosine_validation_loss},
                                global_step=epoch)
 
         if (epoch + 1) % test_interval == 0:
@@ -469,81 +506,64 @@ def train():
             if args['verbose']:
                 log.info('Saved model checkpoint')
 
-        if valid_loss < best_loss or epoch == 0:
+        if no_improvement == 5:
+            best_loss = validation_loss
+            no_improvement = 0
+
+        if validation_loss <= best_loss or epoch == 0:
             torch.save(network.state_dict(), str(model_path) + "/best_model.pth")
             torch.save(optimizer.state_dict(), str(model_path) + "/best_optimizer.pth")
+            best_loss = validation_loss
+            no_improvement = 0
             if args['verbose']:
                 log.info('New best model and optimizer saved!')
-            best_loss = valid_loss
-
-        if args['verbose']:
-            epoch_results = PrettyTable(['Learning Rate',
-                                         'Train Loss',
-                                         'Val Loss',
-                                         "Cosine Loss (%)",
-                                         "Cosine Similarity (%)",
-                                         "SSIM Loss (%)",
-                                         "SSIM Similarity (%)"])
-            epoch_results.add_rows([['{:.4e}'.format(lr_schedule),
-                                     '{:.6f}'.format(train_loss),
-                                     '{:.6f}'.format(valid_loss),
-                                     '{:.4f}'.format(cos_err_val * 100),
-                                     '{:.4f}'.format(cos_sim_val),
-                                     '{:.4f}'.format(ssim_err_val * 100),
-                                     '{:.4f}'.format(ssim_sim_val)]])
         else:
-            epoch_results = PrettyTable(['Train Loss',
-                                         'Val Loss'])
-            epoch_results.add_rows([['{:.6f}'.format(train_loss),
-                                     '{:.6f}'.format(valid_loss)]])
+            if check_l1:
+                no_improvement += 1
+                print(f"Epochs without improvement: {no_improvement}/5")
+
+        epoch_results = PrettyTable(['Learning Rate',
+                                     'Train Loss',
+                                     'Val Loss',
+                                     ' | ',
+                                     "L1 Loss",
+                                     " |",
+                                     "Cosine Loss",
+                                     "Cosine Similarity",
+                                     '| ',
+                                     "SSIM Loss",
+                                     "SSIM Similarity"])
+        epoch_results.add_rows([['{:.4e}'.format(lr_schedule),
+                                 '{:.4f}'.format(training_loss),
+                                 '{:.4f}'.format(validation_loss),
+                                 ' | ',
+                                 '{:.4f}'.format(l1_validation_loss),
+                                 ' |',
+                                 '{:.4f}'.format(cosine_validation_loss),
+                                 '{:.4f}'.format(cosine_validation_similarity),
+                                 '| ',
+                                 '{:.4f}'.format(ssim_validation_loss),
+                                 '{:.4f}'.format(ssim_validation_similarity)]])
 
         epoch_results.border = False
         log.info(epoch_results)
         log.info("\n")
 
-        if (epoch + 1) % (args['num_epochs']) == 0:
-            log_dict = {
-                "Epoch": (epoch + 1),
-                "L1/MAE (sum)": get_mean(l1_sum),
-                "L1/MAE (mean)": get_mean(l1_mean),
-                "L2/MSE (sum)": get_mean(l2_sum),
-                "L2/MSE (mean)": get_mean(l2_mean),
-                "Huber (sum)": get_mean(huber_sum),
-                "Huber (mean)": get_mean(huber_mean),
-                "Cosine error": get_mean(cosineLoss).item(),
-                "Cosine similarity": get_mean(cosineSim).item(),
-                "SSIM error": get_mean(ssimLoss).item(),
-                "SSIM similarity": get_mean(ssimSim).item()
-            }
-            df2 = DataFrame.from_dict([log_dict])
-            if args['verbose']:
-                log.info(df2)
-
     log.info("\n\nTraining complete!\n")
 
-    best_results = PrettyTable(['Train Loss',
-                                'Val Loss',
-                                "Cosine Loss (%)",
-                                "Cosine Similarity (%)",
-                                "SSIM Loss (%)",
-                                "SSIM Similarity (%)"])
-    best_results.add_rows([['{:.6f}'.format(train_loss),
-                            '{:.6f}'.format(valid_loss),
-                            '{:.4f}'.format(cos_err_val * 100),
-                            '{:.4f}'.format(cos_sim_val),
-                            '{:.4f}'.format(ssim_err_val * 100),
-                            '{:.4f}'.format(ssim_sim_val)]])
     log.info("Best training loss:\t{:.6f}\n"
              "Best validation loss:\t{:.6f}\n"
+             "Best l1 loss:\t{:.6f}\n"
              "Best cosine loss:\t{:.6f}\n"
              "Best cosine similarity:\t{:.6f}\n"
              "Best SSIM loss:\t\t{:.6f}\n"
-             "Best SSIM similarity:\t{:.6f}\n".format(min(train_losses),
-                                                      min(val_losses),
-                                                      min(cos_val_losses),
-                                                      min(cos_val_sim),
-                                                      min(ssim_val_losses),
-                                                      min(ssim_val_sim)))
+             "Best SSIM similarity:\t{:.6f}\n".format(min(training_losses),
+                                                      min(validation_losses),
+                                                      min(l1_validation_losses),
+                                                      min(cosine_validation_losses),
+                                                      max(cosine_validation_similarities),
+                                                      min(ssim_validation_losses),
+                                                      max(ssim_validation_similarities)))
     log.info("==========================================================================================\n")
 
     return None
@@ -552,19 +572,10 @@ def train():
 def evaluate():
     image_id.clear()
     l1_sum.clear()
-    l1_mean.clear()
-    l2_sum.clear()
-    l2_mean.clear()
-    huber_sum.clear()
-    huber_mean.clear()
     cosineLoss.clear()
     cosineSim.clear()
     ssimLoss.clear()
     ssimSim.clear()
-    cosine_similarity_val_tmp = []
-    cosine_losses_val_tmp = []
-    ssim_similarity_val_tmp = []
-    ssim_losses_val_tmp = []
     log.info("Evaluating model...")
 
     model = WaveNet()
@@ -580,66 +591,46 @@ def evaluate():
     model.to(device)
     model.eval()
 
-    #     test_losses_l1, test_losses_mse, test_losses_huber = [], [], []
-    cos_test_err, cos_test_sim, ssim_test_err, ssim_test_sim = [], [], [], []
-
     with tqdm(test_loader, unit="batch") as tepoch:
         with torch.no_grad():
-            ssim = SSIM().cuda() if torch.cuda.is_available() else SSIM()
             i = 0
-            for data, target, data_index, target_index in tepoch:
+            for data, target, data_index, target_index, data_orig in tepoch:
                 data = data.to(device)
                 target = target.to(device)
                 tepoch.set_description(f"Evaluating")
                 output = model(data)
 
-                test_l1 = F.l1_loss(output, target, reduction='sum')
-                test_mse = F.mse_loss(output, target, reduction='sum')
-                test_huber = F.huber_loss(output, target, reduction='sum')
+                test_l1 = l1(output, target)
 
                 # Flatten images -> 1D tensors: Compute cosine similarity/loss
                 target_vec = torch.flatten(target)
                 output_vec = torch.flatten(output)
-                cosine_sim = F.cosine_similarity(output_vec, target_vec, dim=0)  # Calculate loss
+                cosine_sim = cos(output_vec, target_vec)  # Calculate loss
                 cosine_loss = 1 - cosine_sim
 
                 # Compute SSIM
                 ssim_similarity = ssim(target, output)
-                ssim_loss_initial = 1 - ssim_similarity
+                ssim_loss = 1 - ssim_similarity
 
-                if args['loss'] == 'similarity':
-                    loss = cosine_loss.item() + ssim_loss_initial
-                else:
-                    loss = loss_function(output, target)  # Calculate loss
-
-                cosine_similarity_val_tmp.append(cosine_sim.item() * 100)
-                cosine_losses_val_tmp.append(cosine_loss.item())
-                ssim_similarity_val_tmp.append(ssim_similarity * 100)
-                ssim_losses_val_tmp.append(ssim_loss_initial.item())
+                # Compute l1 loss
+                l1_loss = l1(output, target)
 
                 prediction = output.detach().cpu().numpy().squeeze()
-                save_inference(data.detach().cpu().numpy(),
+                save_inference(data_orig.detach().cpu().numpy(),
                                target.detach().cpu().numpy(),
                                prediction,
                                torch.Tensor.tolist(test_l1),
-                               torch.Tensor.tolist(test_mse),
-                               torch.Tensor.tolist(test_huber),
+                               torch.Tensor.tolist(ssim_similarity),
+                               torch.Tensor.tolist(cosine_sim),
                                data_index,
                                filepath)
                 i += 1
 
                 image_id.append(str(data_index[0]))
-                l1_sum.append(torch.Tensor.tolist(F.l1_loss(output, target, reduction='sum')))
-                l1_mean.append(torch.Tensor.tolist(F.l1_loss(output, target, reduction='mean')))
-                l2_sum.append(torch.Tensor.tolist(F.mse_loss(output, target, reduction='sum')))
-                l2_mean.append(torch.Tensor.tolist(F.mse_loss(output, target, reduction='mean')))
-                huber_sum.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='sum')))
-                huber_mean.append(torch.Tensor.tolist(F.huber_loss(output, target, reduction='mean')))
-
+                l1_sum.append(torch.Tensor.tolist(l1_loss))
                 cosineSim.append(torch.Tensor.tolist(cosine_sim))
                 cosineLoss.append(torch.Tensor.tolist(cosine_loss))
-
-                ssimLoss.append(torch.Tensor.tolist(ssim_loss_initial))
+                ssimLoss.append(torch.Tensor.tolist(ssim_loss))
                 ssimSim.append(torch.Tensor.tolist(ssim_similarity))
 
     return None
@@ -648,12 +639,7 @@ def evaluate():
 def losses_to_csv(name):
     loss_dict = {
         "Image ID": image_id,
-        "L1/MAE (sum)": l1_sum,
-        "L1/MAE (mean)": l1_mean,
-        "L2/MSE (sum)": l2_sum,
-        "L2/MSE (mean)": l2_mean,
-        "Huber (sum)": huber_sum,
-        "Huber (mean)": huber_mean,
+        "L1 loss": l1_sum,
         "Cosine error": cosineLoss,
         "Cosine similarity": cosineSim,
         "SSIM error": ssimLoss,
@@ -671,12 +657,18 @@ def losses_to_csv(name):
 # Execute program
 train()
 losses_to_csv('results_validation')
+
 if args['num_epochs'] > 1:
-    plot_losses(metrics_path, train_losses, val_losses)
+    plot_final_losses(metrics_path, training_losses, validation_losses, l1_start_epoch)
+    plot_l1_losses(metrics_path, l1_training_losses, l1_validation_losses)
+    plot_ssim_losses(metrics_path, ssim_training_losses, ssim_validation_losses)
+    plot_cosine_losses(metrics_path, cosine_training_losses, cosine_validation_losses)
+    plot_ssim_similarities(metrics_path, ssim_training_similarities, ssim_validation_similarities)
+    plot_cosine_similarities(metrics_path, cosine_training_similarities, cosine_validation_similarities)
+
 evaluate()
 losses_to_csv('results_evaluation')
 
 if args['track']:
     pathname = str(preds_tr_path) + "/" + str(args['track']) + "/"
     make_gif(str(pathname), str(preds_tr_path), str(args['track']))
-    
