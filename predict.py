@@ -17,7 +17,7 @@ from prettytable import PrettyTable
 from torchinfo import summary
 from torch.utils.tensorboard import SummaryWriter
 from utils.utils import *
-from models.WaveNet import *
+from models.WaveNet import WaveNet
 from utils.dataset import WaveSpectraInf
 
 warnings.filterwarnings('ignore', category=UserWarning, message='TypedStorage is deprecated')
@@ -26,7 +26,7 @@ warnings.filterwarnings('ignore', category=UserWarning, message='TypedStorage is
 parser = argparse.ArgumentParser(description="Options for inference")
 
 parser.add_argument("--model_path", action="store", type=str, required=True,
-                    help="path to model .pth file")
+                    help="path to model and optimiser state_dict.pth files")
 parser.add_argument("--img_path", action="store", type=str, required=True,
                     help="path to folder containing source images")
 parser.add_argument("--device", type=str, default='cuda', choices=['cuda', 'cpu'],
@@ -75,7 +75,7 @@ print("=========================================================================
 network = WaveNet()
 network.to(device)
 
-print(summary(network, (1, 1, 64, 64), verbose=2))
+print(summary(network, (1, 1, 29, 24), verbose=2))
 
 for param in network.parameters():
     param.requires_grad = True
@@ -106,6 +106,11 @@ def predict():
                 data = data.to(device)
                 tepoch.set_description(f"Inference")
                 output = model(data)
+
+                output_min, output_max = output.min(), output.max()
+                target_min, target_max = 0.01, 0.85
+                output = (output - output_min) / (output_max - output_min) * (target_max - target_min) + target_min
+
                 prediction = output.detach().cpu().numpy().squeeze()
 
                 save_prediction(prediction,
