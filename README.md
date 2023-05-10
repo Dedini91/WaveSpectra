@@ -1,4 +1,4 @@
-<h1 align="center">Convolutional Autoencoder for Wave Spectra Prediction</h1>
+<h1 align="center">Fully Convolutional Autoencoder for Wave Spectra Prediction</h1>
 
 ---
 
@@ -11,11 +11,7 @@
 
 ---
 
-This is a Pytorch implementation of an unsupervised image to image convolutional autoencoder, capable of accurately predicting near shore wave spectra from corresponding offshore spectra in the form of 64*64 spectrograms.
-
-Normalised offshore (source) and near shore (target) spectra are passed through a 55-layer network, which returns an image via a sigmoid activation in the final layer.
-
-The raw weights of the terminal layer can be treated as pixel activations.
+This is a Pytorch implementation of an unsupervised image to image convolutional autoencoder, capable of accurately predicting near shore wave spectra (72W 28H) from corresponding offshore spectrograms (24W 29H). Normalised offshore (source) and near shore (target) spectra are passed through a 55-layer network, returning an image via a sigmoid activation in the final layer (the raw weights of the terminal layer can be treated as pixel activations). The loss function is a combination of cosine similarity and SSIM: If validation loss does not decrease for 5 epochs, a weighted L1 regularisation term is added to the function. 
 
 <p align="center">
    <img src="assets/training.gif" alt="Tracked training sample" style="height: 480px; width:640px;"/>
@@ -37,7 +33,7 @@ Example usage:
 python make_balanced_dataset.py --data path/to/data_folder -n new_dataset_test
 ```
 ```python
-python train.py -n exp_name -d "data/processed/" -b 1 -e 10 -o adamw -l ssim --lr 0.00005 --verbose
+python train.py -n exp_name -d "data/processed/" -b 1 -e 10 --lr 0.00005 --verbose
 ```
 ```python
 python evaluate.py --model_path "path/to/best_model.pth" --img_path "./path/to/image_folder" --target_path "./path/to/targets_folder" --verbose
@@ -61,6 +57,8 @@ For each script, there are only a few required arguments.
    3. Reduce dimensions using PCA, and perform KMeans clustering on embeddings
    4. Create train/validation/test split, taking equal # samples from each cluster, store in ***data/processed/***
    5. Calculate mean & std. dev. of training data
+
+**See python script for details on clustering/dataset creation. Some values are currently hard-coded.**
    
 Run the preprocessing script to obtain the following directory tree **(ensure .NETCDF files are in the correct location before executing):**
 
@@ -108,7 +106,7 @@ Run the preprocessing script to obtain the following directory tree **(ensure .N
    2. Basic evaluation on test data
    3. Runs are timestamped; all outputs are saved to ***results/exp_name/datetime/***
 
-* The model will default to using gpu where available, unless the `--device cpu` argument is explicitly passed.
+* The model will default to using gpu where available, unless `--device cpu` is passed.
 
 ```python
 # Required arguments:           Type-Default        Description
@@ -149,12 +147,6 @@ Evaluates the performance of a trained model on previously unseen data (test set
 ```
 Numerical results are saved in .csv format ordered by lowest error (for the selected loss function). These can be loaded into Excel or Python for inspection.
 
-Evaluation produces single and comparison images for each sample in the test set, with error maps turned on by default. Error maps display the per-pixel absolute error as calculated by various loss functions. Turning error maps off by passing `--errmaps` may improve training times. 
-
-<p align="center">
-   <img src="assets/error_map.jpg" alt="Error map example" style="height: 400;"/>
-</p>
-
 ---
 
 ## 4. **Inference**
@@ -174,4 +166,3 @@ Evaluation produces single and comparison images for each sample in the test set
 * Add support for:
    * Entering custom image sizes
    * Resuming training from checkpoint
-   * Incorrect values in summary of best losses at end of training
