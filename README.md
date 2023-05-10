@@ -166,3 +166,4 @@ Numerical results are saved in .csv format ordered by lowest error (for the sele
 * Add support for:
    * Entering custom image sizes
    * Resuming training from checkpoint
+   * Address hard-coded clustering parameters
