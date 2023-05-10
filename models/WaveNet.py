@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision import transforms as transforms
 
 from utils.utils import sigmoid, init_layers, normalise_to_source
 
@@ -15,15 +16,6 @@ class Interpolate(nn.Module):
     def forward(self, x):
         x = F.interpolate(x, size=self.size, mode=self.mode)
         return x
-
-
-def pad_img(x):
-    x = x.squeeze()
-    pad_x = torch.ones((x.size(0)), 72, device=x.device, dtype=x.dtype) * 0.2
-    pad_x[:, :x.size(1)] = x
-    pad_x = torch.unsqueeze(pad_x, dim=0)
-    pad_x = torch.unsqueeze(pad_x, dim=0)
-    return pad_x
 
 
 class WaveNet(nn.Module):
@@ -365,9 +357,7 @@ class WaveNet(nn.Module):
         nn.init.xavier_uniform_(self.conv_out5.weight)
 
     def forward(self, input):
-        x = pad_img(input)  # pads to 29*72, need to get to 28*72
-
-        w = self.input_layer1(x)
+        w = self.input_layer1(input)
         x = self.sml_enc1(w)
         y = self.med_enc1(w)
         z = self.lrg_enc1(w)
