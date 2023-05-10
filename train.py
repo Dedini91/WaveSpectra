@@ -639,14 +639,14 @@ def evaluate():
 def losses_to_csv(name):
     loss_dict = {
         "Image ID": image_id,
-        "L1 loss": l1_sum,
+        "L1/MAE": l1_sum,
         "Cosine error": cosineLoss,
         "Cosine similarity": cosineSim,
         "SSIM error": ssimLoss,
         "SSIM similarity": ssimSim
     }
     df = DataFrame.from_dict(loss_dict)
-    df = df.sort_values(by='L1/MAE (sum)', ascending=True)
+    df = df.sort_values(by='L1/MAE', ascending=True)
     log.info(name + ":")
     log.info(df)
 
