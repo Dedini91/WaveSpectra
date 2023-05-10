@@ -253,10 +253,10 @@ cosine_validation_losses, ssim_validation_losses = [], []
 cosine_training_similarities, ssim_training_similarities = [], []
 cosine_validation_similarities, ssim_validation_similarities = [], []
 
-ssim = StructuralSimilarityIndexMeasure(reduction='elementwise_mean')
-cos = CosineSimilarity(reduction='mean')
+ssim = StructuralSimilarityIndexMeasure(reduction='elementwise_mean').to(device)
+cos = CosineSimilarity(reduction='mean').to(device)
 mae = MeanAbsoluteError()
-l1 = torch.nn.L1Loss(reduction='sum')
+l1 = torch.nn.L1Loss(reduction='sum').to(device)
 
 if args['track']:
     x_track_orig = Image.open('data/processed/x_train/' + str(args['track']) + '.jpg')
