@@ -15,6 +15,9 @@ import torch
 import warnings
 from k_means_constrained import KMeansConstrained
 
+# Lines 58-66 should be commented out if just performing clustering
+# Lines 107-108 and 197-199 are currently hard-coded, for greater control over the dataset
+
 warnings.filterwarnings('ignore', category=UserWarning, message="The parameter 'pretrained' is deprecated since 0.13 "
                                                                 "and may be removed in the future, please use 'weights'"
                                                                 " instead.")
@@ -78,24 +81,34 @@ for dir in required_dirs:
     utils.create_dir(dir)
 utils.create_dir(clusters_directory)
 
+print("reading images")
 # Get image data paths and read images
 images = utils.read_images_from_directory(DIR_PATH)
-images = images[0:int(int(args['s']) / 0.8)]
+# images = images[0:int(int(args['s']) / 0.8)]
+print("assigning to list")
+images = images[0:2760]
+print("converting to PIL")
 pil_images = utils.read_with_pil(images)
 
 # Get embeddings
+print("getting embeddings")
 vec = img2vec.get_vec(pil_images, tensor=True)
+print("saving embeddings")
 utils.save_embeddings(vec, embedding_path)
 
 # Embeddings -> PCA
+print("Do PCA")
 pca_embeddings = clustering.calculate_pca(embeddings=vec, dim=2)
 
+print("do kmeans")
 # PCA -> KMeans
 clf = KMeansConstrained(
     n_clusters=args['c'],
-    size_min=args['s'] // 0.8 // 40,        # e.g., for -s = 2400, total images = 3000, min. size = 75
+    # size_min=args['s'] // 0.8 // 40,        # e.g., for -s = 2400, total images = 3000, min. size = 75
+    size_min=75  # e.g., for -s = 2400, total images = 3000, min. size = 75
 )
-clf.fit_predict(pca_embeddings)
+
+label = clf.fit_predict(pca_embeddings)
 centroid = clf.cluster_centers_
 labels = clf.labels_
 
@@ -117,13 +130,14 @@ for label_number in tqdm(range(args['c'])):
         )
 
 # Initialize the class object
-kmeans = KMeans(n_clusters=args['c'])
-
-# Predict cluster labels
-clf = KMeansConstrained(
-    n_clusters=args['c'],
-    size_min=args['s'] // 0.8 // 40,        # e.g., for -s = 2400, total images = 3000, min. size = 75
-)
+# kmeans = KMeans(n_clusters=args['c'])
+#
+# # Predict cluster labels
+# clf = KMeansConstrained(
+#     n_clusters=args['c'],
+#     # size_min=args['s'] // 0.8 // 40,        # e.g., for -s = 2400, total images = 3000, min. size = 75
+#     size_min=75  # e.g., for -s = 2400, total images = 3000, min. size = 75
+# )
 
 # Get unique labels
 label = clf.fit_predict(pca_embeddings)
@@ -176,9 +190,13 @@ numSamples = lengths["train"] + lengths["val"] + lengths["test"]    # total data
 print("# of pairs:\t", numSamples, "\nDataset split:\t", lengths)
 
 # Can change these to hardcoded values
-train_percent = args['s'] // 0.8 // 60      # e.g., // 60 = 50 images
-val_percent = args['s'] // 0.8 // 200       # e.g., // 200 = 15 images
-test_percent = args['s'] // 0.8 // 300      # e.g., // 300 = 10 images
+# train_percent = args['s'] // 0.8 // 60      # e.g., // 60 = 50 images
+# val_percent = args['s'] // 0.8 // 200       # e.g., // 200 = 15 images
+# test_percent = args['s'] // 0.8 // 300      # e.g., // 300 = 10 images
+
+train_percent = 50      # e.g., // 60 = 50 images
+val_percent = 15       # e.g., // 200 = 15 images
+test_percent = 10      # e.g., // 300 = 10 images
 
 print("Minimum cluster size:\t", train_percent + val_percent + test_percent)
 print("# of samples per cluster (train):\t", train_percent)
