@@ -1,15 +1,21 @@
 """Custom dataset class"""
 from PIL import Image
 from torch.utils.data import Dataset
+import torch
+
+
+def pad_img(x):
+    x = x.squeeze()
+    pad_x = torch.ones((x.size(0)), 72, device=x.device, dtype=x.dtype) * 0.02
+    pad_x[:, :x.size(1)] = x
+    pad_x = torch.unsqueeze(pad_x, dim=0)
+    return pad_x
 
 
 class WaveSpectra(Dataset):
     def __init__(self, data_paths, target_paths, transform):
-        # super(Dataset, self).__init__()
         self.data_paths = data_paths
 
-        # temp_path = self.data_paths[0].replace('\\', '/').split('/')[-1]
-        # print(len(temp_path))
         self.target_paths = target_paths
         self.transform = transform
 
@@ -22,10 +28,11 @@ class WaveSpectra(Dataset):
 
         x = Image.open(self.data_paths[index])
         y = Image.open(self.target_paths[index])
-        x = self.transform(x)
+        x_orig = self.transform(x)
+        x = pad_img(x_orig)
         y = self.transform(y)
 
-        return x, y, x_idx, y_idx
+        return x, y, x_idx, y_idx, x_orig
 
     def __len__(self):
         return len(self.data_paths)
