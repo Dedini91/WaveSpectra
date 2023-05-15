@@ -1,25 +1,24 @@
-import os, math, time, argparse, torch, torchvision, logging, pprint, warnings
-import pandas as pd
+import os, math, time, argparse, torch, torchvision, logging, pprint, warnings, numpy as np, pandas as pd
+from torchmetrics import StructuralSimilarityIndexMeasure, CosineSimilarity
+from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import Dataset, DataLoader
+import torchvision.transforms as transforms
+from prettytable import PrettyTable
+import torch.nn.functional as F
+import matplotlib.pyplot as plt
+from torchinfo import summary
 from pandas import DataFrame
+import torch.optim as optim
 from pathlib import Path
-import numpy as np
+from torch import Tensor
 from tqdm import tqdm
 from glob import glob
-import matplotlib.pyplot as plt
 from PIL import Image
-from torch import Tensor
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-import torchvision.transforms as transforms
-from torch.utils.data import Dataset, DataLoader
-from prettytable import PrettyTable
-from torchinfo import summary
-from torch.utils.tensorboard import SummaryWriter
-from torchmetrics import StructuralSimilarityIndexMeasure, CosineSimilarity, MeanAbsoluteError
 
+
+from utils.dataset import WaveSpectraNPZ, WaveSpectraNpzRAM, pad_img
 from models.WaveNet import WaveNet
-from utils.dataset import WaveSpectra, pad_img
 from utils.utils import *
 
 warnings.filterwarnings('ignore', category=UserWarning, message='TypedStorage is deprecated')
@@ -35,10 +34,12 @@ parser.add_argument("-d", "--data", action="store", type=str, required=True,
                     help="path to processed dataset")
 parser.add_argument("--prototyping", action="store_true", default=False,
                     help="prototyping mode (train on reduced dataset)")
-parser.add_argument("--track", action='store', type=str, required=False,
+parser.add_argument("--track", action='store', type=str, required=False, default=None,
                     help="saves all predictions for a specified source image (file name only e.g. 00178)")
+parser.add_argument("--cache", action="store_true", default=False,
+                    help="load complete dataset into RAM")
 parser.add_argument("--model_path", action="store", type=str, required=False,
-                    help="path to saved model and optimiser .pth files")
+                    help="path to saved model")
 parser.add_argument("--device", type=str, default='cuda', choices=['cuda', 'cpu'],
                     help="device")
 parser.add_argument("-e", "--num-epochs", type=int, default=20,
@@ -96,114 +97,111 @@ ch.setLevel(logging.INFO)  # Prints to both log and CLI
 ch.setFormatter(formatter)
 log.addHandler(ch)
 
-# Messages to stdout and stderr (file)
-log.info("Arguments parsed - Current configuration:")
-if args['verbose']:
-    for k, v in args.items():
-        log.info("{:<15} {:<10}".format(str(k), str(v)))
-
-log.info("\nCreated folder structure for experiment: ")
-if args['verbose']:
-    log.info(filepath)
-    log.info(logs_path)
-    log.info(model_path)
-    log.info(metrics_path)
-    log.info(preds_tr_path)
-    log.info(preds_val_path)
-    log.info(preds_eval_path)
-
-log.info("==========================================================================================")
 # Device configuration
 device = torch.device('cuda' if args['device'] == 'cuda' and torch.cuda.is_available() else 'cpu')
 if device == 'cuda':
     torch.backends.cudnn.benchmark = True
-if args['verbose']:
-    log.info("\nDevice:\t" + str(device))
+    torch.backends.cudnn.enabled = True
 
-# Get all image paths
-if args["prototyping"]:  # Reduced for testing
-    x_train_paths = glob(args['data'] + '/red_x_train/*.jpg')
-    y_train_paths = glob(args['data'] + '/red_y_train/*.jpg')
-    x_val_paths = glob(args['data'] + '/red_x_val/*.jpg')
-    y_val_paths = glob(args['data'] + '/red_y_val/*.jpg')
-    x_test_paths = glob(args['data'] + '/red_x_test/*.jpg')
-    y_test_paths = glob(args['data'] + '/red_y_test/*.jpg')
+x_train_path = args['data'] + "/x_train.npz"
+y_train_path = args['data'] + "/y_train.npz"
+x_val_path = args['data'] + "/x_val.npz"
+y_val_path = args['data'] + "/y_val.npz"
+x_test_path = args['data'] + "/x_test.npz"
+y_test_path = args['data'] + "/y_test.npz"
+
+# Create dataset
+if args['cache']:
+    train = WaveSpectraNpzRAM(x_train_path, y_train_path, device='cuda' if torch.cuda.is_available() else 'cpu')
+    val = WaveSpectraNpzRAM(x_val_path, y_val_path, device='cuda' if torch.cuda.is_available() else 'cpu')
+    test = WaveSpectraNpzRAM(x_test_path, y_test_path, device='cuda' if torch.cuda.is_available() else 'cpu')
 else:
-    x_train_paths = glob(args['data'] + '/x_train/*.jpg')
-    y_train_paths = glob(args['data'] + '/y_train/*.jpg')
-    x_val_paths = glob(args['data'] + '/x_val/*.jpg')
-    y_val_paths = glob(args['data'] + '/y_val/*.jpg')
-    x_test_paths = glob(args['data'] + '/x_test/*.jpg')
-    y_test_paths = glob(args['data'] + '/y_test/*.jpg')
+    with np.load(x_train_path) as x_train_data:
+        x_train_data_files = x_train_data.files
+    with np.load(y_train_path) as y_train_data:
+        y_train_data_files = y_train_data.files
+    with np.load(x_val_path) as x_val_data:
+        x_val_data_files = x_val_data.files
+    with np.load(y_val_path) as y_val_data:
+        y_val_data_files = y_val_data.files
+    with np.load(x_test_path) as x_test_data:
+        x_test_data_files = x_test_data.files
+    with np.load(y_test_path) as y_test_data:
+        y_test_data_files = y_test_data.files
 
-# Create Dataset using custom class in utils.dataset.py
-transformations = transforms.ToTensor()
+    train = WaveSpectraNPZ(x_train_path, y_train_path, x_train_data_files, y_train_data_files)
+    val = WaveSpectraNPZ(x_val_path, y_val_path, x_val_data_files, y_val_data_files)
+    test = WaveSpectraNPZ(x_test_path, y_test_path, x_test_data_files, y_test_data_files)
 
-train = WaveSpectra(x_train_paths, y_train_paths, transform=transformations)
-val = WaveSpectra(x_val_paths, y_val_paths, transform=transformations)
-test = WaveSpectra(x_test_paths, y_test_paths, transform=transformations)
-
-# Define DataLoaders for train/val/test sets
-train_loader = DataLoader(train, batch_size=args['batch_size'], shuffle=True)
-val_loader = DataLoader(val, batch_size=args['batch_size'], shuffle=True)
-test_loader = DataLoader(test, batch_size=1, shuffle=False)
+# Define DataLoaders
+train_loader = DataLoader(train,
+                          batch_size=args['batch_size'],
+                          shuffle=True,
+                          num_workers=2 if torch.cuda.is_available() else 0,
+                          pin_memory=True if torch.cuda.is_available() else False)
+val_loader = DataLoader(val,
+                        batch_size=args['batch_size'],
+                        shuffle=True,
+                        num_workers=2 if torch.cuda.is_available() else 0,
+                        pin_memory=True if torch.cuda.is_available() else False)
+test_loader = DataLoader(test,
+                         batch_size=1,
+                         shuffle=False,
+                         num_workers=2 if torch.cuda.is_available() else 0,
+                         pin_memory=True if torch.cuda.is_available() else False)
 
 train_loader.requires_grad = True
 val_loader.requires_grad = False
 test_loader.requires_grad = False
 
+
 # Save example image(s) from train set
-x_train_sample, y_train_sample, x_train_index, y_train_index, x_train_orig = next(iter(train_loader))
-x_val_sample, y_val_sample, x_val_index, y_val_index, x_val_orig = next(iter(val_loader))
-x_test_sample, y_test_sample, x_test_index, y_test_index, x_test_orig = next(iter(test_loader))
+def dataset_info():
+    x_train_sample, y_train_sample, sample_index, x_train_orig = next(iter(train_loader))
+    x_val_sample, y_val_sample, sample_index, x_val_orig = next(iter(val_loader))
+    x_test_sample, y_test_sample, sample_index, x_test_orig = next(iter(test_loader))
 
-num_sample_images = 3 if args['batch_size'] >= 3 else args['batch_size']
-for i in range(num_sample_images):
-    plt.subplot(1, 3, 1)
-    plt.title("Offshore")
-    plt.xticks([])
-    plt.yticks([])
-    plt.imshow(x_train_orig[i].squeeze(), cmap="gray")
+    num_sample_images = 3 if args['batch_size'] >= 3 else args['batch_size']
+    for i in range(num_sample_images):
+        plt.subplot(1, 3, 1)
+        plt.title("Offshore")
+        plt.xticks([])
+        plt.yticks([])
+        plt.imshow(x_train_orig[i].squeeze(), cmap="gray")
 
-    plt.subplot(1, 3, (2, 3))
-    plt.title("Near Shore")
-    plt.xticks([])
-    plt.yticks([])
-    plt.imshow(y_train_sample[i].squeeze(), cmap="gray")
+        plt.subplot(1, 3, (2, 3))
+        plt.title("Near Shore")
+        plt.xticks([])
+        plt.yticks([])
+        plt.imshow(y_train_sample[i].squeeze(), cmap="gray")
 
-    plt.suptitle("Example training data (normalised)")
-    plt.savefig(str(filepath) + "/sample_train" + str(i) + ".jpg")
-    plt.close()
+        plt.suptitle("Example training data (normalised)")
+        plt.savefig(str(filepath) + "/sample_train" + str(i) + ".jpg")
+        plt.close()
 
-log.info("==========================================================================================")
-# Display basic dataset information
-if args['verbose']:
-    # Precomputed values: RECALCULATE FOR YOUR DATASET WHEN PREPROCESSING
-    # mean = 0.1176469
-    # std = 0.00040002
+    # Display basic dataset information
+    if args['verbose']:
+        xtr1 = x_train_orig[0].squeeze()
+        ytr1 = y_train_sample[0].squeeze()
+        xva1 = x_val_sample[0].squeeze()
+        yva1 = y_val_sample[0].squeeze()
+        xte1 = x_test_sample[0].squeeze()
+        yte1 = y_test_sample[0].squeeze()
 
-    # Tabulate dataset info
-    xtr1 = x_train_orig[0].squeeze()
-    ytr1 = y_train_sample[0].squeeze()
-    xva1 = x_val_sample[0].squeeze()
-    yva1 = y_val_sample[0].squeeze()
-    xte1 = x_test_sample[0].squeeze()
-    yte1 = y_test_sample[0].squeeze()
+        t1 = PrettyTable([' ', '# pairs', 'Dimensions', "# pixels", "Datatype"])
+        t1.add_rows(
+            [
+                ["Train", str(len(train)), str(list(xtr1.size())), str(getinfo(xtr1)[1]), str(getinfo(xtr1)[2])],
+                ["Validation", str(len(val)), str(list(xva1.size())), str(getinfo(xva1)[1]), str(getinfo(xva1)[2])],
+                ["Test", str(len(test)), str(list(xte1.size())), str(getinfo(xte1)[1]), str(getinfo(xte1)[2])]
+            ]
+        )
 
-    t1 = PrettyTable([' ', '# pairs', 'Dimensions', "# pixels", "Datatype"])
-    t1.add_rows(
-        [
-            ["Train", str(len(train)), str(list(xtr1.size())), str(getinfo(xtr1)[1]), str(getinfo(xtr1)[2])],
-            ["Validation", str(len(val)), str(list(xva1.size())), str(getinfo(xva1)[1]), str(getinfo(xva1)[2])],
-            ["Test", str(len(test)), str(list(xte1.size())), str(getinfo(xte1)[1]), str(getinfo(xte1)[2])]
-        ]
-    )
+        log.info("Basic dataset statistics:")
+        log.info(t1)
+        log.info("==========================================================================================")
 
-    log.info("Basic dataset information:")
-    # log.info("Train set mean/std:\t" + str(mean) + "/" + str(std))
-    log.info(t1)
 
-log.info("==========================================================================================")
 # Setup CNN using custom CAE class in models.model.py
 network = WaveNet()
 network.to(device)
@@ -216,15 +214,8 @@ for param in network.parameters():
     param.requires_grad = True
 
 total_samples = len(train)
-n_iter = math.ceil(total_samples / args['batch_size'])
+n_iter = math.ceil(total_samples // args['batch_size'])
 
-if args['verbose']:
-    log.info("Number of epochs: " + str(args['num_epochs']))
-    log.info("Total samples: " + str(total_samples))
-    log.info("Batch size: " + str(args['batch_size']))
-    log.info("# iterations: " + str(n_iter))
-
-log.info("==========================================================================================")
 optimizer = optim.AdamW(network.parameters(),
                         lr=float(args['lr']),
                         betas=(args['momentum'], 0.999),
@@ -232,14 +223,29 @@ optimizer = optim.AdamW(network.parameters(),
 
 if args['scheduler']:
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args['num_epochs'], eta_min=args['lr_min'])
-    if args['verbose']:
-        log.info("Using cosine learning rate annealing:")
-        log.info("Max lr: {} - Min lr: {}".format(float(args['lr']), float(args['lr_min'])))
 
 test_interval = args['interval']
 
-log.info('Setup complete!\n')
-log.info("==========================================================================================")
+dataset_info()
+
+if args['verbose']:
+    log.info("\nArguments parsed - Current configuration:")
+    for k, v in args.items():
+        log.info("{:<15} {:<10}".format(str(k), str(v)))
+
+    log.info(f"\nCreated experiment directories at:\t{filepath}")
+    log.info("\nDevice:\t" + str(device))
+    if args['cache']:
+        log.info("Data stored in RAM for faster retrieval")
+    if args['scheduler']:
+        log.info("Using cosine learning rate annealing:")
+        log.info("Max lr: {} - Min lr: {}".format(float(args['lr']), float(args['lr_min'])))
+    log.info("\nNumber of epochs: \t" + str(args['num_epochs']))
+    log.info("Total samples: \t\t" + str(total_samples))
+    log.info("Batch size: \t\t" + str(args['batch_size']))
+    log.info("# iterations: \t\t" + str(n_iter))
+    log.info('\nSetup complete!\n')
+
 log.info("==========================================================================================")
 
 ssimLoss, ssimSim = [], []
@@ -255,18 +261,44 @@ cosine_validation_similarities, ssim_validation_similarities = [], []
 
 ssim = StructuralSimilarityIndexMeasure(reduction='elementwise_mean').to(device)
 cos = CosineSimilarity(reduction='mean').to(device)
-mae = MeanAbsoluteError()
+# cos = nn.CosineSimilarity(dim=1, eps=1e-6).to(device)
 l1 = torch.nn.L1Loss(reduction='sum').to(device)
 
-if args['track']:
-    x_track_orig = Image.open('data/processed/x_train/' + str(args['track']) + '.jpg')
-    y_track = Image.open('data/processed/y_train/' + str(args['track']) + '.jpg')
-
-    x_track_orig = transformations(x_track_orig).to(device)
-    x_padded = pad_img(x_track_orig).to(device)
-    y_track = transformations(y_track).to(device)
-
 l1_start_epoch = 0
+
+
+# # Clip model weights to [0, 1]
+# class WeightClipper(object):
+#     def __init__(self, frequency=5):
+#         self.frequency = frequency
+#
+#     def __call__(self, module):
+#         # filter the variables to get the ones you want
+#         if hasattr(module, 'weight'):
+#             w = module.weight.data
+#             w = w.clamp(-1, 1)
+#             module.weight.data = w
+#
+#
+# clipper = WeightClipper()
+
+
+def compute_cosine(output, target):
+    target_vec = torch.flatten(target, start_dim=1, end_dim=3)
+    output_vec = torch.flatten(output, start_dim=1, end_dim=3)
+    cosine_similarity = cos(output_vec, target_vec)  # Calculate loss
+    cosine_loss = 1 - cosine_similarity
+
+    del target_vec
+    del output_vec
+
+    return cosine_similarity, cosine_loss
+
+
+def compute_ssim(output, target):
+    ssim_similarity = ssim(output, target)
+    ssim_loss = 1 - ssim_similarity
+    return ssim_similarity, ssim_loss
 
 
 def train():
@@ -276,6 +308,11 @@ def train():
     log.info("Training Model...")
     check_l1 = True
     add_l1 = False
+
+    if args['model_path']:
+        network.load_state_dict(torch.load(str(args['model_path'])))
+        if args['verbose']:
+            log.info("Loading model from supplied model_path: {}".format(str(args['model_path']).replace("\\", '/')))
 
     for epoch in range(args['num_epochs']):
         if epoch > 1 and epoch % 5 == 0:
@@ -310,53 +347,70 @@ def train():
         cosine_validation_similarity = 0
 
         with tqdm(train_loader, unit="batch") as tepoch:
-            for data, target, data_index, target_index, data_orig in tepoch:
+            for data, target, index, data_orig in tepoch:
+                # data, data_min, data_max = min_max_01(data)
+                # target_norm, target_min, target_max = min_max_01(target)
+
                 i += 1
                 data = data.to(device)
                 target = target.to(device)
                 epoch_counter = f"Epoch {epoch + 1}/{args['num_epochs']}"
                 tepoch.set_description(epoch_counter)
-                optimizer.zero_grad()  # Clear gradients
+                optimizer.zero_grad(set_to_none=True)  # Clear gradients
                 output = network(data)  # Forward pass
 
-                # Compute cosine similarity:
-                target_vec = torch.flatten(target, start_dim=1, end_dim=3)
-                output_vec = torch.flatten(output, start_dim=1, end_dim=3)
-                cosine_similarity = cos(output_vec, target_vec)  # Calculate loss
-                cosine_loss = 1 - cosine_similarity
+                target_min, target_max = target.min(), target.max()
+                output = (output * (target_max - target_min)) + target_min
 
-                # Compute SSIM
-                ssim_similarity = ssim(output, target)
-                ssim_loss = 1 - ssim_similarity
+                # Compute cosine similarity:
+                cosine_similarity, cosine_loss = compute_cosine(output, target)
+
+                # Compute ssim
+                ssim_similarity, ssim_loss = compute_ssim(output, target)
 
                 # Compute l1 loss
                 l1_loss = l1(output, target) / args['batch_size']
 
                 if not add_l1:
                     loss = cosine_loss + ssim_loss
+                    # loss = ssim_loss
+                    l1_loss.detach()
                 else:
-                    loss = cosine_loss + ssim_loss + (l1_loss * 0.01)
+                    loss = cosine_loss + ssim_loss + (l1_loss * 0.1)
+                    # loss = ssim_loss + (l1_loss * 0.1)
+
+                training_loss += loss.detach().item()
+                l1_training_loss += l1_loss.detach().item()
+                ssim_training_loss += ssim_loss.detach().item()
+                cosine_training_loss += cosine_loss.detach().item()
+                ssim_training_similarity += ssim_similarity.detach().item()
+                cosine_training_similarity += cosine_similarity.detach().item()
 
                 loss.backward()  # Calculate gradients
                 optimizer.step()  # Update weights
 
-                training_loss += loss.item()
-                l1_training_loss += l1_loss.item()
-                ssim_training_loss += ssim_loss.item()
-                cosine_training_loss += cosine_loss.item()
-                ssim_training_similarity += ssim_similarity.item()
-                cosine_training_similarity += cosine_similarity.item()
+                # data = min_max_revert(data, data_min, data_max)
+                # # target = min_max_revert(target, target_min, target_max)
+                # output = min_max_revert(output, target_min, target_max)
+
+                # network.apply(clipper)
 
                 if args['verbose']:
                     tepoch.set_postfix(loss=loss.item())
 
-        # if str(args['track']) == data_index[0].split('.')[0]:
-        if str(args['track']):
-            z_track = network(x_padded.unsqueeze(dim=0))
+        if args['track']:
+            x_track_orig = np.load(args['data'] + "/x_train.npz")[args['track']].astype(np.float32)
+            y_track = np.load(args['data'] + "/y_train.npz")[args['track']].astype(np.float32)
 
+            x_track_orig = torch.from_numpy(x_track_orig).to(device)
+            x_padded = pad_img(x_track_orig).to(device)
+            y_track = torch.from_numpy(y_track).to(device)
+            y_track = torch.unsqueeze(y_track, dim=0)
+
+            z_track = network(x_padded.unsqueeze(dim=0)).detach()
             save_sample(x_track_orig.detach().cpu().numpy(),
                         y_track.detach().cpu().numpy(),
-                        z_track.detach().cpu().numpy().squeeze(),
+                        z_track.cpu().numpy().squeeze(),
                         epoch,
                         args['track'],
                         filepath)
@@ -383,6 +437,7 @@ def train():
             scheduler.step()
 
         prediction = output.detach().cpu().numpy().squeeze()
+
         train_path = (str(filepath) + "/predictions/" + "training/" + 'epoch_{}'.format(epoch + 1)).replace('\\', '/')
         val_path = (str(filepath) + "/predictions/" + "validation/" + 'epoch_{}'.format(epoch + 1)).replace('\\', '/')
 
@@ -400,7 +455,7 @@ def train():
                       prediction,
                       'Training',
                       epoch,
-                      data_index,
+                      index,
                       filepath,
                       args['batch_size'])
 
@@ -408,7 +463,10 @@ def train():
         iters = 0
         with torch.no_grad():
             with tqdm(val_loader, unit="batch") as tepoch:
-                for data, target, data_index, target_index, data_orig in tepoch:
+                for data, target, index, data_orig in tepoch:
+                    # data, data_min, data_max = min_max_01(data)
+                    # target, target_min, target_max = min_max_01(target)
+
                     data = data.to(device)
                     target = target.to(device)
                     indent = ' ' * len(epoch_counter)
@@ -416,23 +474,25 @@ def train():
                     optimizer.zero_grad()
                     output = network(data)
 
-                    # Flatten images -> 1D tensors: Compute cosine similarity/loss
-                    target_vec = torch.flatten(target, start_dim=1, end_dim=3)
-                    output_vec = torch.flatten(output, start_dim=1, end_dim=3)
-                    cosine_similarity = cos(output_vec, target_vec)
-                    cosine_loss = 1 - cosine_similarity
+                    target_min, target_max = target.min(), target.max()
+                    output = (output * (target_max - target_min)) + target_min
 
-                    # Compute SSIM
-                    ssim_similarity = ssim(target, output)
-                    ssim_loss = 1 - ssim_similarity
+                    # Compute cosine similarity:
+                    cosine_similarity, cosine_loss = compute_cosine(output, target)
+
+                    # Compute ssim
+                    ssim_similarity, ssim_loss = compute_ssim(output, target)
 
                     # Compute l1 loss
                     l1_loss = l1(output, target) / args['batch_size']
 
                     if not add_l1:
                         loss = cosine_loss + ssim_loss
+                        # loss = ssim_loss
+                        l1_loss.detach()
                     else:
-                        loss = cosine_loss + ssim_loss + (l1_loss * 0.01)
+                        loss = cosine_loss + ssim_loss + (l1_loss * 0.1)
+                        # loss = ssim_loss + (l1_loss * 0.1)
 
                     validation_loss += loss.item()
                     l1_validation_loss += l1_loss.item()
@@ -444,12 +504,16 @@ def train():
                     tepoch.set_postfix(loss=loss.item())
 
                     if (epoch + 1) % (args['num_epochs']) == 0:
-                        image_id.append(str(data_index[0]))
+                        image_id.append(str(index[0]))
                         l1_sum.append(l1_loss.item())
-                        cosineSim.append(cosine_similarity.detach().cpu().numpy())
-                        cosineLoss.append(cosine_loss.detach().cpu().numpy())
                         ssimLoss.append(ssim_loss.detach().cpu().numpy())
+                        cosineLoss.append(cosine_loss.detach().cpu().numpy())
                         ssimSim.append(ssim_similarity.detach().cpu().numpy())
+                        cosineSim.append(cosine_similarity.detach().cpu().numpy())
+
+                    # data = min_max_revert(data, data_min, data_max)
+                    # target = min_max_revert(target, target_min, target_max)
+                    # output = min_max_revert(output, target_min, target_max)
 
                     iters += 1  # for calculating means across validation iterations
 
@@ -464,7 +528,7 @@ def train():
                           prediction,
                           'Validation',
                           epoch,
-                          data_index,
+                          index,
                           filepath,
                           args['batch_size'])
 
@@ -493,11 +557,17 @@ def train():
             writer.add_scalars('Training Losses', {'Train_loss': training_loss,
                                                    'Valid_loss': validation_loss},
                                global_step=epoch)
-            writer.add_scalars('Similarity', {'SSIM': ssim_validation_similarity,
-                                              'Cosine': cosine_validation_similarity},
+            writer.add_scalars('SSIM Similarity', {'Training': ssim_training_similarity,
+                                                   'Validation': ssim_validation_similarity},
                                global_step=epoch)
-            writer.add_scalars('Error', {'SSIM': ssim_validation_loss,
-                                         'Cosine': cosine_validation_loss},
+            writer.add_scalars('SSIM Loss', {'Training': ssim_training_loss,
+                                             'Validation': ssim_validation_loss},
+                               global_step=epoch)
+            writer.add_scalars('Cosine Similarity', {'Training': cosine_training_similarity,
+                                                     'Validation': cosine_validation_similarity},
+                               global_step=epoch)
+            writer.add_scalars('Cosine Loss', {'Training': cosine_training_loss,
+                                               'Validation': cosine_validation_loss},
                                global_step=epoch)
 
         if (epoch + 1) % test_interval == 0:
@@ -549,6 +619,9 @@ def train():
         log.info(epoch_results)
         log.info("\n")
 
+        if device == 'cuda':
+            torch.cuda.empy_cache()
+
     log.info("\n\nTraining complete!\n")
 
     log.info("Best training loss:\t{:.6f}\n"
@@ -591,10 +664,13 @@ def evaluate():
     model.to(device)
     model.eval()
 
-    with tqdm(test_loader, unit="batch") as tepoch:
+    with tqdm(test_loader, unit="sample") as tepoch:
         with torch.no_grad():
             i = 0
-            for data, target, data_index, target_index, data_orig in tepoch:
+            for data, target, index, data_orig in tepoch:
+                # data, data_min, data_max = min_max_01(data)
+                # target, target_min, target_max = min_max_01(target)
+
                 data = data.to(device)
                 target = target.to(device)
                 tepoch.set_description(f"Evaluating")
@@ -602,15 +678,11 @@ def evaluate():
 
                 test_l1 = l1(output, target)
 
-                # Flatten images -> 1D tensors: Compute cosine similarity/loss
-                target_vec = torch.flatten(target)
-                output_vec = torch.flatten(output)
-                cosine_sim = cos(output_vec, target_vec)  # Calculate loss
-                cosine_loss = 1 - cosine_sim
+                # Compute cosine similarity:
+                cosine_similarity, cosine_loss = compute_cosine(output, target)
 
-                # Compute SSIM
-                ssim_similarity = ssim(target, output)
-                ssim_loss = 1 - ssim_similarity
+                # Compute ssim
+                ssim_similarity, ssim_loss = compute_ssim(output, target)
 
                 # Compute l1 loss
                 l1_loss = l1(output, target)
@@ -621,17 +693,17 @@ def evaluate():
                                prediction,
                                torch.Tensor.tolist(test_l1),
                                torch.Tensor.tolist(ssim_similarity),
-                               torch.Tensor.tolist(cosine_sim),
-                               data_index,
+                               torch.Tensor.tolist(cosine_similarity),
+                               index,
                                filepath)
                 i += 1
 
-                image_id.append(str(data_index[0]))
+                image_id.append(str(index[0]))
                 l1_sum.append(torch.Tensor.tolist(l1_loss))
-                cosineSim.append(torch.Tensor.tolist(cosine_sim))
-                cosineLoss.append(torch.Tensor.tolist(cosine_loss))
                 ssimLoss.append(torch.Tensor.tolist(ssim_loss))
+                cosineLoss.append(torch.Tensor.tolist(cosine_loss))
                 ssimSim.append(torch.Tensor.tolist(ssim_similarity))
+                cosineSim.append(torch.Tensor.tolist(cosine_similarity))
 
     return None
 
