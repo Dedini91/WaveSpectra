@@ -1,11 +1,11 @@
 """Misc. functions"""
 import matplotlib.pyplot as plt
-import torch
-import torch.nn as nn
 from pathlib import Path
-import os
+import torch.nn as nn
 from PIL import Image
 from glob import glob
+import torch
+import os
 
 
 def sigmoid(x):
@@ -32,6 +32,7 @@ def make_gif(frame_folder, savepath, foldername):
     frame_one = frames[0]
     frame_one.save(pathname + "training.gif", format="gif", append_images=frames,
                    save_all=True, duration=200, loop=0)
+
     return None
 
 
@@ -39,7 +40,21 @@ def normalise_to_source(target, output):
     output_min, output_max = output.min(), output.max()
     target_min, target_max = target.min(), target.max()
     output = (output - output_min) / (output_max - output_min) * (target_max - target_min) + target_min
+
     return output
+
+
+def min_max_01(img):
+    img_min, img_max = img.min(), img.max()
+    img = (img - img_min) / (img_max - img_min) * (1 - 0) + 0
+
+    return img, img_min, img_max
+
+
+def min_max_revert(img, og_min, og_max):
+    og_img = (img * (og_max - og_min)) + og_min
+
+    return og_img
 
 
 def save_sample(data, target, prediction, epoch, filename, root_path):
@@ -49,7 +64,7 @@ def save_sample(data, target, prediction, epoch, filename, root_path):
     plt.title("Source")
     plt.xticks([])
     plt.yticks([])
-    plt.imshow(data[0, :, :].squeeze(), cmap="gray")
+    plt.imshow(data[:, :].squeeze(), cmap="gray")
 
     plt.subplot(2, 3, (2, 3))
     plt.title("Target")
@@ -72,11 +87,10 @@ def save_sample(data, target, prediction, epoch, filename, root_path):
     fullpath = str(root_path) + pathname
 
     if not os.path.exists(os.path.dirname(fullpath)):
-      os.mkdir(os.path.dirname(fullpath))
+        os.mkdir(os.path.dirname(fullpath))
 
     plt.savefig(fullpath + ".jpg")
     plt.close()
-
     return None
 
 
@@ -139,7 +153,7 @@ def save_examples(x_data, y_data, z_data, mode, epoch, filename, root_path, batc
     return None
 
 
-def save_inference(x_data, y_data, z_data, loss1, ssim, cosine, filename, root_path):
+def save_inference(x_data, y_data, z_data, loss1, ssim, filename, root_path):
     plt.subplot(2, 3, (1, 4))
     plt.title("Source")
     plt.xticks([])
@@ -161,9 +175,7 @@ def save_inference(x_data, y_data, z_data, loss1, ssim, cosine, filename, root_p
     plt.suptitle("Evaluation:\nL1(MAE): "
                  + str(round(loss1, 4))
                  + "/SSIM: "
-                 + str(round(ssim, 4))
-                 + "/Cosine: "
-                 + str(round(cosine, 4)))
+                 + str(round(ssim, 4)))
 
     plt.savefig(str(root_path) + "/predictions/evaluation/" + str(filename[0]))
     plt.close()
@@ -171,7 +183,7 @@ def save_inference(x_data, y_data, z_data, loss1, ssim, cosine, filename, root_p
     return None
 
 
-def save_eval(x_data, y_data, z_data, loss1, ssim, cosine, filename, root_path):
+def save_eval(x_data, y_data, z_data, loss1, ssim, filename, root_path):
     plt.imshow(x_data[:, :], cmap='gray')
     plt.axis('off')
     plt.tight_layout()
@@ -211,9 +223,7 @@ def save_eval(x_data, y_data, z_data, loss1, ssim, cosine, filename, root_path):
     plt.suptitle("Evaluation:\nL1(MAE): "
                  + str(round(loss1, 4))
                  + "/SSIM: "
-                 + str(round(ssim, 4))
-                 + "/Cosine: "
-                 + str(round(cosine, 4)))
+                 + str(round(ssim, 4)))
 
     plt.savefig(str(root_path) + "/" + str(filename).split(".")[0] + "_comp.jpg")
     plt.close()
@@ -250,21 +260,6 @@ def plot_l1_losses(metrics_path, l1_training_losses, l1_validation_losses):
     return None
 
 
-def plot_cosine_losses(metrics_path, cosine_training_losses, cosine_validation_losses):
-    xs = [x for x in range(len(cosine_training_losses))]
-    plt.plot(xs, cosine_training_losses, color='blue', label='Train')
-    plt.plot(xs, cosine_validation_losses, color='red', label='Validation')
-    plt.title("Cosine loss")
-    plt.xlabel("Epochs")
-    plt.xticks(range(0, len(xs)))
-    plt.ylabel("Loss")
-    plt.tight_layout()
-    plt.legend()
-    plt.savefig(str(metrics_path) + "/metrics_losses_cosine.jpg")
-    plt.close()
-    return None
-
-
 def plot_ssim_losses(metrics_path, ssim_training_losses, ssim_validation_losses):
     xs = [x for x in range(len(ssim_training_losses))]
     plt.plot(xs, ssim_training_losses, color='blue', label='Train')
@@ -280,21 +275,6 @@ def plot_ssim_losses(metrics_path, ssim_training_losses, ssim_validation_losses)
     return None
 
 
-def plot_cosine_similarities(metrics_path, cosine_training_similarities, cosine_validation_similarities):
-    xs = [x for x in range(len(cosine_training_similarities))]
-    plt.plot(xs, cosine_training_similarities, color='blue', label='Train')
-    plt.plot(xs, cosine_validation_similarities, color='red', label='Validation')
-    plt.title("Cosine similarity")
-    plt.xlabel("Epochs")
-    plt.xticks(range(0, len(xs)))
-    plt.ylabel("Similarity")
-    plt.tight_layout()
-    plt.legend()
-    plt.savefig(str(metrics_path) + "/metrics_similarity_cosine.jpg")
-    plt.close()
-    return None
-
-
 def plot_ssim_similarities(metrics_path, ssim_training_similarities, ssim_validation_similarities):
     xs = [x for x in range(len(ssim_training_similarities))]
     plt.plot(xs, ssim_training_similarities, color='blue', label='Train')
@@ -306,6 +286,36 @@ def plot_ssim_similarities(metrics_path, ssim_training_similarities, ssim_valida
     plt.tight_layout()
     plt.legend()
     plt.savefig(str(metrics_path) + "/metrics_similarity_ssim.jpg")
+    plt.close()
+    return None
+
+
+def plot_cosine_losses(metrics_path, cosine_training_losses, cosine_validation_losses):
+    xs = [x for x in range(len(cosine_training_losses))]
+    plt.plot(xs, cosine_training_losses, color='blue', label='Train')
+    plt.plot(xs, cosine_validation_losses, color='red', label='Validation')
+    plt.title("Cosine loss")
+    plt.xlabel("Epochs")
+    plt.xticks(range(0, len(xs)))
+    plt.ylabel("Loss")
+    plt.tight_layout()
+    plt.legend()
+    plt.savefig(str(metrics_path) + "/metrics_losses_cosine.jpg")
+    plt.close()
+    return None
+
+
+def plot_cosine_similarities(metrics_path, cosine_training_similarities, cosine_validation_similarities):
+    xs = [x for x in range(len(cosine_training_similarities))]
+    plt.plot(xs, cosine_training_similarities, color='blue', label='Train')
+    plt.plot(xs, cosine_validation_similarities, color='red', label='Validation')
+    plt.title("Cosine similarity")
+    plt.xlabel("Epochs")
+    plt.xticks(range(0, len(xs)))
+    plt.ylabel("Similarity")
+    plt.tight_layout()
+    plt.legend()
+    plt.savefig(str(metrics_path) + "/metrics_similarity_cosine.jpg")
     plt.close()
     return None
 
