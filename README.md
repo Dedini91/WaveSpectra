@@ -22,7 +22,7 @@ This is a Pytorch implementation of an unsupervised image to image convolutional
 ## Usage:
 ### **Download the repository & install requirements**
    ```python
-    git clone https://github.com/Dedini91/WaveSpectra_CAE.git
+    git clone https://github.com/Dedini91/WaveSpectra.git
     pip install -r requirements.txt
    ```
 
@@ -33,10 +33,10 @@ Example usage:
 python make_balanced_dataset.py --data path/to/data_folder -n new_dataset_test
 ```
 ```python
-python train.py -n exp_name -d "data/processed/" -b 1 -e 10 --lr 0.00005 --verbose
+python train.py -n exp_name -d "path/to/folder/containing/npz_files" -b 1 -e 10 --lr 0.00005 --verbose --cache
 ```
 ```python
-python evaluate.py --model_path "path/to/best_model.pth" --img_path "./path/to/image_folder" --target_path "./path/to/targets_folder" --verbose
+python evaluate.py --model_path "path/to/best_model.pth" -d "path/to/folder/containing/npz_files" --verbose
 ```
 ```python
 python predict.py --model_path "path/to/best_model.pth" --img_path "./path/to/image_folder"
