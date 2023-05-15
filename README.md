@@ -11,7 +11,7 @@
 
 ---
 
-This is a Pytorch implementation of an unsupervised image to image convolutional autoencoder, capable of accurately predicting near shore wave spectra (72W 28H) from corresponding offshore spectrograms (24W 29H). Normalised offshore (source) and near shore (target) spectra are passed through a 55-layer network, returning an image via a sigmoid activation in the final layer (the raw weights of the terminal layer can be treated as pixel activations). The loss function is a combination of cosine similarity and SSIM: If validation loss does not decrease for 5 epochs, a weighted L1 regularisation term is added to the function. 
+This is a Pytorch implementation of an unsupervised image to image convolutional autoencoder, capable of accurately predicting near shore wave spectra (72W 28H) from corresponding offshore spectrograms (24W 29H). Data pairs are passed through a 55-layer network, returning an image via a sigmoid activation in the final layer (the raw weights of the terminal layer are treated as pixel activations). The loss function is a combination of cosine similarity and SSIM: If validation loss does not decrease for 5 epochs, a weighted L1 regularisation term is added to the function. 
 
 <p align="center">
    <img src="assets/training.gif" alt="Tracked training sample" style="height: 480px; width:640px;"/>
