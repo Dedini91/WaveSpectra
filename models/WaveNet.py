@@ -1,8 +1,8 @@
 """Model definitions"""
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from torchvision import transforms as transforms
+import torch.nn.functional as F
+import torch.nn as nn
+import torch
 
 from utils.utils import sigmoid, init_layers, normalise_to_source
 
@@ -21,6 +21,7 @@ class Interpolate(nn.Module):
 class WaveNet(nn.Module):
     def __init__(self):
         super(WaveNet, self).__init__()
+
         self.resize64 = Interpolate(size=(64, 64), mode='bilinear')
         self.resize128 = Interpolate(size=(128, 128), mode='bilinear')
         self.resize28_72 = Interpolate(size=(28, 72), mode='bilinear')
@@ -438,6 +439,7 @@ class WaveNet(nn.Module):
         w = self.relu(self.conv_out9(w))
         w = self.clean9(w)
 
-        output = normalise_to_source(input, sigmoid(self.conv_out10(w)))
+        # output = normalise_to_source(input, sigmoid(self.conv_out10(w)))
+        output = sigmoid(self.conv_out10(w))
 
         return output
