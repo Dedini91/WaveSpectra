@@ -1,124 +1,95 @@
-import numpy as np
-import os
-import cv2 as cv
+from utils import clustering, clustering_utils as utils
+from k_means_constrained import KMeansConstrained
+import matplotlib.pyplot as plt
+from itertools import compress
 from pathlib import Path
 from tqdm import tqdm
+import numpy as np
+import argparse
 import random
 import shutil
-import argparse
-from img2vec_pytorch import Img2Vec
-from sklearn.cluster import KMeans
-from itertools import compress
-import matplotlib.pyplot as plt
-from utils import clustering, clustering_utils as utils
 import torch
-import warnings
-from k_means_constrained import KMeansConstrained
-
-# Lines 58-66 should be commented out if just performing clustering
-# Lines 107-108 and 197-199 are currently hard-coded, for greater control over the dataset
-
-warnings.filterwarnings('ignore', category=UserWarning, message="The parameter 'pretrained' is deprecated since 0.13 "
-                                                                "and may be removed in the future, please use 'weights'"
-                                                                " instead.")
-warnings.filterwarnings('ignore', category=UserWarning, message="Arguments other than a weight enum or `None` for "
-                                                                "'weights' are deprecated since 0.13 and may be "
-                                                                "removed in the future. The current behavior is "
-                                                                "equivalent to passing `weights=ResNet18_Weights."
-                                                                "IMAGENET1K_V1`. You can also use `weights=ResNet18_"
-                                                                "Weights.DEFAULT` to get the most up-to-date weights.")
-warnings.filterwarnings('ignore', category=FutureWarning, message="The default value of `n_init` will change from 10 "
-                                                                  "to 'auto' in 1.4. Set the value of `n_init` "
-                                                                  "explicitly to suppress the warning")
+import os
 
 
 parser = argparse.ArgumentParser(description="Preprocessing options")
-
-parser.add_argument("-d", "--data", action="store", type=str, required=True,
+parser.add_argument("-d", "--data", action="store", type=str, default='data', required=True,
                     help="path to parent directory of raw data folder")
 parser.add_argument("-n", "--name", action="store", type=str, required=True,
                     help="dataset name")
-parser.add_argument("-s", type=int, default=2000, required=True,
-                    help="number of training samples (max 80% of total # samples")
-parser.add_argument("-c", type=int, default=10, required=True,
+parser.add_argument('--split', nargs='+', type=int, required=True,
+                    help="number of train/val/test samples per cluster. e.g. --split 50 20 10")
+parser.add_argument("-c", type=int, default=None, required=True,
                     help="number of clusters (classes)")
 
-args = vars(parser.parse_args())
+args = parser.parse_args()
 
-root_path = Path(args['data'])
+project_name = args.name
+clusters_directory = f"data/clustered/clusters/{project_name}"
+utils.create_dir(clusters_directory)
 
-numSamples = len(list(Path(str(root_path) + '/raw/Offshore/').rglob('*.jpg')))  # Get total number of image pairs
+root_path = Path(args.data)
 
-# Preprocess raw images (greyscale, resize, rename)
-src_paths = {'x_path': str(root_path) + '/raw/Offshore/',
-             'y_path': str(root_path) + '/raw/NearShore/'}
+x_data_path = "data/offshore_5yr.npz"
+y_data_path = "data/nearshore_5yr.npz"
+
+x_data = np.load(x_data_path)
+y_data = np.load(y_data_path)
+
+numSamples = (len(x_data.files))
+print(f"# of x/y pairs:\t{numSamples}")
+cluster_min = len(x_data.files) // args.c
+
 temp_paths = {'x_path': str(root_path) + '/interim/Offshore/',
               'y_path': str(root_path) + '/interim/NearShore/'}
 
-os.makedirs(str(root_path) + '/interim')
-os.makedirs(str(root_path) + '/interim/Offshore')
-os.makedirs(str(root_path) + '/interim/NearShore')
+image_paths = list(Path(temp_paths['x_path']).rglob('*.npy'))
 
-for path in src_paths:
-    for i in range(0, numSamples):
-        img = cv.imread(src_paths[path] + str(i) + ".jpg", 0)
-        img_scaled = cv.resize(img, (64, 64), cv.INTER_AREA)
-        cv.imwrite(temp_paths[path] + str(i).zfill(5) + ".jpg", img_scaled)
+# os.makedirs(str(root_path) + '/interim')
+# os.makedirs(temp_paths['x_path'])
+# os.makedirs(temp_paths['y_path'])
+#
+# for i in range(0, numSamples):
+#     x_img = x_data[str(i).zfill(5)].astype(np.float32)
+#     np.save("data/interim/Offshore/"+str(i).zfill(5)+".npy", x_img)
+#     y_img = y_data[str(i).zfill(5)].astype(np.float32)
+#     np.save("data/interim/NearShore/" + str(i).zfill(5) + ".npy", y_img)
 
-# ----------------------------------------------------------------
-# CLUSTERING
-img2vec = Img2Vec(cuda=True if torch.cuda.is_available() else False)
+print("Created interim folders (.npy) files")
+print("Converting images -> vectors")
 
-DIR_PATH = str(root_path) + "/interim/Offshore"
+x_vec = [None] * numSamples
+y_vec = [None] * numSamples
 
-project_name = str(args['name'])
-embedding_path = f"data/clustered/embeddings/{project_name}.pt"
-clusters_directory = f"data/clustered/clusters/{project_name}"
+for i in range(0, numSamples):
+    x_vec[i] = torch.from_numpy(x_data[str(i).zfill(5)].astype(np.float32))
 
-# Create required directories
-required_dirs = ["data/clustered/embeddings", "data/clustered/clusters"]
-for dir in required_dirs:
-    utils.create_dir(dir)
-utils.create_dir(clusters_directory)
+x_data.close()
+y_data.close()
 
-print("reading images")
-# Get image data paths and read images
-images = utils.read_images_from_directory(DIR_PATH)
-# images = images[0:int(int(args['s']) / 0.8)]
-print("assigning to list")
-images = images[0:2760]
-print("converting to PIL")
-pil_images = utils.read_with_pil(images)
-
-# Get embeddings
-print("getting embeddings")
-vec = img2vec.get_vec(pil_images, tensor=True)
-print("saving embeddings")
-utils.save_embeddings(vec, embedding_path)
+x_stack = torch.stack(x_vec)
+x_flat = x_stack.flatten(start_dim=1)
 
 # Embeddings -> PCA
-print("Do PCA")
-pca_embeddings = clustering.calculate_pca(embeddings=vec, dim=2)
+print("Doing PCA...")
+pca_embeddings = clustering.calculate_pca(embeddings=x_flat, dim=2)
+print("PCA done")
 
-print("do kmeans")
 # PCA -> KMeans
-clf = KMeansConstrained(
-    n_clusters=args['c'],
-    # size_min=args['s'] // 0.8 // 40,        # e.g., for -s = 2400, total images = 3000, min. size = 75
-    size_min=75  # e.g., for -s = 2400, total images = 3000, min. size = 75
-)
-
+print(f"Doing Constrained KMeans: Minimum cluster size = {cluster_min}")
+clf = KMeansConstrained(n_clusters=args.c, size_min=cluster_min)
 label = clf.fit_predict(pca_embeddings)
 centroid = clf.cluster_centers_
 labels = clf.labels_
+print("Clustering done")
 
-# Save random sample clusters
-for label_number in tqdm(range(args['c'])):
+print("Saving .npy files to relevant clusters")
+for label_number in tqdm(range(args.c)):
     label_mask = labels == label_number
-    label_images = list(compress(pil_images, label_mask))
+    label_images = list(compress(x_stack, label_mask))
     utils.create_image_grid(label_images, project_name, label_number)
 
-    path_images = list(compress(images, label_mask))
+    path_images = list(compress(image_paths, label_mask))
     target_directory = f"data/clustered/clusters/{project_name}/cluster_{label_number}"
     utils.create_dir(target_directory)
 
@@ -129,137 +100,97 @@ for label_number in tqdm(range(args['c'])):
             target_directory,
         )
 
-# Initialize the class object
-# kmeans = KMeans(n_clusters=args['c'])
-#
-# # Predict cluster labels
-# clf = KMeansConstrained(
-#     n_clusters=args['c'],
-#     # size_min=args['s'] // 0.8 // 40,        # e.g., for -s = 2400, total images = 3000, min. size = 75
-#     size_min=75  # e.g., for -s = 2400, total images = 3000, min. size = 75
-# )
-
+print("Saved")
 # Get unique labels
 label = clf.fit_predict(pca_embeddings)
 centroids = clf.cluster_centers_
 u_labels = np.unique(label)
 
-# Plot results:
 plt.close()
+print("Plotting results...")
 for i in u_labels:
-    plt.scatter(pca_embeddings[label == i, 0], pca_embeddings[label == i, 1], label=i)
+    plt.scatter(pca_embeddings[label == i, 0], pca_embeddings[label == i, 1], label=i, s=20)
 plt.scatter(centroids[:, 0], centroids[:, 1], s=80, color='k')
-# plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper left')
 plt.tight_layout()
-plt.savefig("data/clustered/KMeans.jpg")
-plt.show()
+plt.savefig("data/clustered/KMeans.png")
 plt.close()
 
 
-# ----------------------------------------------------------------
-# Split dataset into training/test sets
-if not os.path.exists(str(root_path) + '/processed'):
-    os.makedirs(str(root_path) + '/processed/x_train')
-    os.makedirs(str(root_path) + '/processed/x_val')
-    os.makedirs(str(root_path) + '/processed/x_test')
-    os.makedirs(str(root_path) + '/processed/y_train')
-    os.makedirs(str(root_path) + '/processed/y_val')
-    os.makedirs(str(root_path) + '/processed/y_test')
+print("Splitting data into train/validation/test sets...")
 
-x_dst_paths = {'x_train': str(root_path) + '/processed/x_train/',
-               'x_val': str(root_path) + '/processed/x_val/',
-               'x_test': str(root_path) + '/processed/x_test/'}
-
-y_dst_paths = {'y_train': str(root_path) + '/processed/y_train/',
-               'y_val': str(root_path) + '/processed/y_val/',
-               'y_test': str(root_path) + '/processed/y_test/'}
-
-x_dst_keys = list(x_dst_paths)
-y_dst_keys = list(y_dst_paths)
-
-lengths = {'train': args['s'],
-           'val': args['s'] // 8,
-           'test': args['s'] // 8}
+lengths = {'train': args.split[0] * args.c,
+           'val': args.split[1] * args.c,
+           'test': args.split[2] * args.c}
 
 iterLengths = {"train": lengths["train"],
                "val": lengths["train"] + lengths["val"],
                "test": lengths["train"] + lengths["val"] + lengths["test"]}
 
-numSamples = lengths["train"] + lengths["val"] + lengths["test"]    # total dataset size calculated from training set
+numSamples = lengths["train"] + lengths["val"] + lengths["test"]
 
 print("# of pairs:\t", numSamples, "\nDataset split:\t", lengths)
 
-# Can change these to hardcoded values
-# train_percent = args['s'] // 0.8 // 60      # e.g., // 60 = 50 images
-# val_percent = args['s'] // 0.8 // 200       # e.g., // 200 = 15 images
-# test_percent = args['s'] // 0.8 // 300      # e.g., // 300 = 10 images
-
-train_percent = 50      # e.g., // 60 = 50 images
-val_percent = 15       # e.g., // 200 = 15 images
-test_percent = 10      # e.g., // 300 = 10 images
-
-print("Minimum cluster size:\t", train_percent + val_percent + test_percent)
-print("# of samples per cluster (train):\t", train_percent)
-print("# of samples per cluster (val):\t\t", val_percent)
-print("# of samples per cluster (test):\t", test_percent)
+x_train_data = []
+x_train_ids = []
+x_validation_data = []
+x_validation_ids = []
+x_test_data = []
+x_test_ids = []
 
 d = f'data/clustered/clusters/{project_name}'
-subdirs = [os.path.join(d, o) for o in os.listdir(d) if os.path.isdir(os.path.join(d, o))]
+sub_dirs = [os.path.join(d, o) for o in os.listdir(d) if os.path.isdir(os.path.join(d, o))]
 
-for dir in subdirs:
-    files = [f for f in os.listdir(dir) if os.path.isfile(dir + '/' + f)]
-    to_copy = random.sample(files, int(train_percent + val_percent + test_percent))
-    for i in range(int(train_percent + val_percent + test_percent)):
-        if i < int(train_percent):
-            shutil.copy(os.path.join(dir, to_copy[i]), x_dst_paths['x_train'])
-        elif int(train_percent) <= i < int(train_percent + val_percent):
-            shutil.copy(os.path.join(dir, to_copy[i]), x_dst_paths['x_val'])
-        elif int(train_percent + val_percent) <= i < int(train_percent + val_percent + test_percent):
-            shutil.copy(os.path.join(dir, to_copy[i]), x_dst_paths['x_test'])
+for sub_dir in sub_dirs:
+    files = [f for f in os.listdir(sub_dir) if os.path.isfile(sub_dir + '/' + f)]
+    to_copy = random.sample(files, args.split[0] + args.split[1] + args.split[2])
+    for i in range(numSamples):
+        if i < int(args.split[0]):
+            x_train_data.append(np.load(sub_dir + "/" + to_copy[i]).astype(np.float32))
+            x_train_ids.append(to_copy[i].split('.')[0])
+        elif int(args.split[0]) <= i < int(args.split[0] + args.split[1]):
+            x_validation_data.append(np.load(sub_dir + "/" + to_copy[i]).astype(np.float32))
+            x_validation_ids.append(to_copy[i].split('.')[0])
+        elif int(args.split[0] + args.split[1]) <= i < int(args.split[0] + args.split[1] + args.split[2]):
+            x_test_data.append(np.load(sub_dir + "/" + to_copy[i]).astype(np.float32))
+            x_test_ids.append(to_copy[i].split('.')[0])
 
-# copy corresponding near shore data into y_directories
-d = f'data/processed'
-subdirs = [os.path.join(d, o) for o in os.listdir(d) if os.path.isdir(os.path.join(d, o))]
-x_train_files = [f for f in os.listdir("data/processed/x_train") if os.path.isfile("data/processed/x_train" + '/' + f)]
-x_val_files = [f for f in os.listdir("data/processed/x_val") if os.path.isfile("data/processed/x_val" + '/' + f)]
-x_test_files = [f for f in os.listdir("data/processed/x_test") if os.path.isfile("data/processed/x_test" + '/' + f)]
+x_train_dict = dict(zip(x_train_ids, x_train_data))
+np.savez_compressed('data/x_train', **x_train_dict)
 
-for f in x_train_files:
-    shutil.copy(os.path.join("data/interim/NearShore", f), y_dst_paths['y_train'])
-for f in x_val_files:
-    shutil.copy(os.path.join("data/interim/NearShore", f), y_dst_paths['y_val'])
-for f in x_test_files:
-    shutil.copy(os.path.join("data/interim/NearShore", f), y_dst_paths['y_test'])
+x_validation_dict = dict(zip(x_validation_ids, x_validation_data))
+np.savez_compressed('data/x_val', **x_validation_dict)
 
-# ----------------------------------------------------------------
-# Calculate the mean and standard deviation of training samples
-files = list(Path(str(root_path) + '/processed/x_train/').rglob('*.jpg'))  # Get number of image pairs in x_train
-numTrainSamples = len(files)
+x_test_dict = dict(zip(x_test_ids, x_test_data))
+np.savez_compressed('data/x_test', **x_test_dict)
 
-mean = np.array([0.])
-stdTemp = np.array([0.])
-std = np.array([0.])
+print("Offshore data split successfully")
 
-for i in tqdm(range(numTrainSamples)):
-    im = cv.imread(str(files[i]), 0)
-    im = im.astype(float) / 255.
+y_train_data = []
+y_train_ids = []
+y_validation_data = []
+y_validation_ids = []
+y_test_data = []
+y_test_ids = []
 
-    for j in range(1):
-        mean[j] += np.mean(im[:, j])
+with np.load("data/nearshore_5yr.npz") as y_data:
+    for i in enumerate(list(x_train_ids)):
+        y_train_ids.append(i[-1])
+        y_train_data.append(y_data[i[-1].zfill(5)])
+    for i in enumerate(list(x_validation_ids)):
+        y_validation_ids.append(i[-1])
+        y_validation_data.append(y_data[i[-1].zfill(5)])
+    for i in enumerate(list(x_test_ids)):
+        y_test_ids.append(i[-1])
+        y_test_data.append(y_data[i[-1].zfill(5)])
 
-mean = (mean / numTrainSamples)
+y_train_dict = dict(zip(y_train_ids, y_train_data))
+np.savez_compressed('data/y_train', **y_train_dict)
 
-for i in tqdm(range(numTrainSamples)):
-    im = cv.imread(str(files[i]), 0)
-    im = im.astype(float) / 255.
-    for j in range(1):
-        stdTemp[j] += ((im[:, j] - mean[j]) ** 2).sum() / (im.shape[0] * im.shape[1])
+y_validation_dict = dict(zip(y_validation_ids, y_validation_data))
+np.savez_compressed('data/y_val', **y_validation_dict)
 
-std = np.sqrt(stdTemp / numTrainSamples)
+y_test_dict = dict(zip(y_test_ids, y_test_data))
+np.savez_compressed('data/y_test', **y_test_dict)
 
-print("Mean:\t", mean)
-print("Std:\t", std)
-
-# Calculated values:
-# Mean:     [0.1176469]
-# Std:      [0.00040002]
+print("Corresponding near shore data split successfully")
+print("Done")
