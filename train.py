@@ -260,8 +260,8 @@ cosine_training_similarities, ssim_training_similarities = [], []
 cosine_validation_similarities, ssim_validation_similarities = [], []
 
 ssim = StructuralSimilarityIndexMeasure(reduction='elementwise_mean').to(device)
-cos = CosineSimilarity(reduction='mean').to(device)
-# cos = nn.CosineSimilarity(dim=1, eps=1e-6).to(device)
+# cos = CosineSimilarity(reduction='mean').to(device)
+cos = nn.CosineSimilarity(dim=1, eps=1e-6).to(device)
 l1 = torch.nn.L1Loss(reduction='sum').to(device)
 
 l1_start_epoch = 0
