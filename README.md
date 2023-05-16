@@ -80,7 +80,7 @@ For each script, there are only a few required arguments.
 * Each run is logged to ***./results/exp_name/datetime/***
 * Best & most recent model checkpoints saved to ***./results/exp_name/datetime/model/***
 * Train/Validation predictions saved to ***./results/exp_name/datetime/predictions/*** if argument ```--outputs``` is passed
-* ```--track``` can be passed with a training sample ID to view prediction from each epoch
+* Predictions for a specified sample can be saved each epoch using ```--track``` and providing a sample ID
 * Training supports storing data in RAM for rapid retrieval using ```--cache```
 
 #### **Logging with tensorboard**
@@ -89,11 +89,6 @@ For each script, there are only a few required arguments.
 ```python
 tensorboard --logdir="path/to/logs_folder/"
 ```
-
-<p align="center">
-   <img src="assets/losses.jpg" alt="Train_val_losses" style="height: 480px; width:640px;"/>
-</p>
-
 ---
 
 ## 3. **Evaluation**
