@@ -81,6 +81,7 @@ For each script, there are only a few required arguments.
 * Best & most recent model checkpoints saved to ***./results/exp_name/datetime/model/***
 * Train/Validation predictions saved to ***./results/exp_name/datetime/predictions/*** if argument ```--outputs``` is passed
 * ```--track``` can be passed with a training sample ID to view prediction from each epoch
+* Training supports storing data in RAM for rapid retrieval using ```--cache```
 
 #### **Logging with tensorboard**
 * Metrics are automatically logged to ***./results/exp_name/datetime/logs/***
