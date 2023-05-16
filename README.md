@@ -11,85 +11,49 @@
 
 ---
 
-This is a Pytorch implementation of an unsupervised image to image convolutional autoencoder, capable of accurately predicting near shore wave spectra (72W 28H) from corresponding offshore spectrograms (24W 29H). Data pairs are passed through a 55-layer network, returning an image via a sigmoid activation in the final layer (the raw weights of the terminal layer are treated as pixel activations). The loss function is a combination of cosine similarity and SSIM: If validation loss does not decrease for 5 epochs, a weighted L1 regularisation term is added to the function. 
+WaveSpectra is a 55-layer Fully Convolutional Neural Network (FCNN) designed to perform unsupervised image-to-image regression on offshore and corresponding near shore wave energy density spectrograms. Once trained, the network is capable of accurately predicting near shore wave conditions from offshore data. 
 
 <p align="center">
    <img src="assets/training.gif" alt="Tracked training sample" style="height: 480px; width:640px;"/>
 </p>
 
-> If running on Colab or similar, follow the included .ipynb walkthrough notebook
+> If running on Colab or similar, follow the included **get_data** and **Walkthrough** notebooks
 
 ## Usage:
-### **Download the repository & install requirements**
+### **Download repository & install requirements**
    ```python
     git clone https://github.com/Dedini91/WaveSpectra.git
     pip install -r requirements.txt
    ```
 
-Arguments are passed when running the script from the command line.
-
 Example usage:
 ```python
-python make_balanced_dataset.py --data path/to/data_folder -n new_dataset_test
+python make_balanced_dataset.py -d path/to/data_folder -n new_dataset_test -c 50 --split 80 20 10
 ```
 ```python
-python train.py -n exp_name -d "path/to/folder/containing/npz_files" -b 1 -e 10 --lr 0.00005 --verbose --cache
+python train.py -n exp_name --verbose --cache -d path/to/folder/containing/npz_files -b 1 -e 30 --lr 0.00001 --track 05902 --outputs --device cuda
+python train.py -n resume_exp --verbose --cache -d path/to/folder/containing/npz_files --model_path path/to/model/last.pth --track 05902 --outputs --device cuda --resume
 ```
 ```python
-python evaluate.py --model_path "path/to/best_model.pth" -d "path/to/folder/containing/npz_files" --verbose
+python evaluate.py --model_path path/to/best_model.pth -d path/to/folder/containing/npz_files --verbose --device cuda
 ```
 ```python
-python predict.py --model_path "path/to/best_model.pth" --img_path "./path/to/image_folder"
+python predict.py -d data/x_test.npz --model_path path/to/best_model.pth
 ```
 
 For each script, there are only a few required arguments. 
 
-> Executing `script_name.py --help` will print the complete list of supported arguments.
+> Execute `script_name.py --help` to print the complete list of supported arguments.
 
 ---
 
 ## 1. **Preprocess raw data and make dataset**
-> Use "get_data.ipynb" to retrieve data and save spectrograms
+> Use "get_data.ipynb" to retrieve and save raw data in compressed .npz format
 
 * **make_balanced_dataset.py**
-   1. Extract spectrogram pairs from .NETCDF files, store in ***data/raw/***
-   2. Basic preprocessing (resize to 64*64, rename, greyscale), store in ***data/interim/***
-   3. Reduce dimensions using PCA, and perform KMeans clustering on embeddings
-   4. Create train/validation/test split, taking equal # samples from each cluster, store in ***data/processed/***
-   5. Calculate mean & std. dev. of training data
-
-**See python script for details on clustering/dataset creation. Some values are currently hard-coded.**
-   
-Run the preprocessing script to obtain the following directory tree **(ensure .NETCDF files are in the correct location before executing):**
-
-```
-├── data/
-│   ├── balanced/*.jpg
-│   ├── raw/*.jpg
-│   ├── interim/*.jpg
-│   └── processed/
-│       ├── x_train/*.jpg           # Training data:
-│       │   ├── 00000.jpg           
-│       │   ├── 00001.jpg
-│       │   ├──    ...
-│       │   └── 0000n.jpg
-│       ├── y_train/*
-│       ├── x_val/*                 # Validation data:
-│       ├── y_val/*                 
-│       ├── x_test/*                # Test/evaluation data:
-│       ├── y_test/*                
-│       └── red_.../*               # Prototyping folders (red_x_train... etc.)
-├── train.py
-├── evaluate.py
-├── README.md
-├── requirements.txt
-├── raw_data.NETCDF
-│   ...
-└──
-```
-  * For prototyping purposes, manually create copies of [x_..., y_...] subfolders with the desired # samples, prepending "red_" to the directory name
-    * e.g. ***red_x_train/***, ***red_y_train/***, etc. 
-
+   1. Perform PCA, and perform constrained KMeans clustering
+   2. Sample clusters equally to partition data into train/validation/test sets
+ 
 ```python
 # Required arguments:           Type-Default        Description
     -d      --data              str-None            'path to parent directory of raw data folder'
