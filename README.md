@@ -11,7 +11,7 @@
 
 ---
 
-WaveSpectra is a 55-layer Fully Convolutional Neural Network (FCNN) designed to perform unsupervised image-to-image regression on offshore and corresponding near shore wave energy density spectrograms. Once trained, the network is capable of accurately predicting near shore wave conditions from offshore data. 
+WaveSpectra is a 55-layer Fully Convolutional Neural Network (FCNN) designed to perform unsupervised image-to-image regression on offshore wave energy density spectrograms. Once trained, the network is capable of accurately predicting corresponding near shore wave conditions from offshore data. 
 
 <p align="center">
    <img src="assets/training.gif" alt="Tracked training sample" style="height: 480px; width:640px;"/>
