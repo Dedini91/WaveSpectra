@@ -51,38 +51,39 @@ For each script, there are only a few required arguments.
 > Use "get_data.ipynb" to retrieve and save raw data in compressed .npz format
 
 * **make_balanced_dataset.py**
-   1. Perform PCA, and perform constrained KMeans clustering
-   2. Sample clusters equally to partition data into train/validation/test sets
+   * Perform PCA, and Constrained KMeans
+   * Sample clusters equally to partition data into train/validation/test sets
  
 ```python
 # Required arguments:           Type-Default        Description
-    -d      --data              str-None            'path to parent directory of raw data folder'
+    -d      --data              str-None            'path to directory containing .npz files'
     -n      --name              str-None            'dataset name'
-    -s                          int-2000            'number of training samples (max 80% of total # samples)'
-    -c                          int-10              'number of clusters (classes)'
+    -s      --split             str-None            'number of train/val/test samples per cluster. e.g. --split 50 20 10"'
+    -c      --clusters          str-None            'number of clusters (classes)'
 ```
 
 ---
 
 ## 2. **Training**
 * **train.py**
-   1. Training and validation of neural network
-   2. Basic evaluation on test data
-   3. Runs are timestamped; all outputs are saved to ***results/exp_name/datetime/***
+   * Training and validation of neural network
+   * Basic evaluation on test data
+   * Runs are timestamped; all outputs are saved to ***results/exp_name/datetime/***
 
 * The model will default to using gpu where available, unless `--device cpu` is passed.
 
 ```python
 # Required arguments:           Type-Default        Description
-    -d      --data              str-None            'path to processed dataset'
+    -d      --data              str-None            'path to directory containing .npz files'
     -n      --name              str-None            'experiment name'
 ```
 * Each run is logged to ***./results/exp_name/datetime/***
-* Model & optimiser saved to ***./results/exp_name/datetime/model/***
-* Train/Validation predictions saved to ***./results/exp_name/datetime/predictions/***
+* Best & most recent model checkpoints saved to ***./results/exp_name/datetime/model/***
+* Train/Validation predictions saved to ***./results/exp_name/datetime/predictions/*** if argument ```--outputs``` is passed
+* ```--track``` can be passed with a training sample ID to view prediction from each epoch
 
 #### **Logging with tensorboard**
-* Basic metrics are automatically logged to ***./results/exp_name/datetime/logs/***
+* Metrics are automatically logged to ***./results/exp_name/datetime/logs/***
 * View in tensorboard by running the following in a separate terminal:
 ```python
 tensorboard --logdir="path/to/logs_folder/"
@@ -96,20 +97,14 @@ tensorboard --logdir="path/to/logs_folder/"
 
 ## 3. **Evaluation**
 * **evaluate.py**
-   1. Performs more in-depth evaluation on any dataset with corresponding ground truths
-   2. Generates error maps to identify difficult examples
-   3. Creates evaluation folder within parent run directory
-
-Evaluates the performance of a trained model on previously unseen data (test set), giving an idea of how well it generalises.
-* Pass source images located in `--img_path "./path/to/image_folder"` and paired target images `--target_path "./path/to/targets_folder"` to evaluate model located at `--model_path "./results/exp_name/datetime/model/best_model.pth"`.
+   * Performs evaluation on any dataset with corresponding ground truths
 
 ```python
 # Required arguments:           Type-Default        Description
-            --model_path        str-None            'path to model and optimiser state_dict.pth files'
-            --img_path          str-None            'path to folder/image for evaluation and inference'
-            --target_path       str-None            'path to target images for evaluation and inference'
+            --model_path        str-None            'path to checkpoint'
+    -d      --data              str-None            'path to directory containing .npz files'
 ```
-Numerical results are saved in .csv format ordered by lowest error (for the selected loss function). These can be loaded into Excel or Python for inspection.
+Raw results are logged, and also saved in .csv format
 
 ---
 
@@ -119,8 +114,8 @@ Numerical results are saved in .csv format ordered by lowest error (for the sele
 
 ```python
 # Required arguments:           Type-Default        Description
-            --model_path        str-None            'path to model and optimiser state_dict.pth files'
-            --img_path          str-None            'path to folder/image for evaluation and inference'
+            --model_path        str-None            'path to checkpoint'
+    -d      --data_path         str-None            'path to directory containing .npz files'
 ```
 
 ---
@@ -129,5 +124,3 @@ Numerical results are saved in .csv format ordered by lowest error (for the sele
 
 * Add support for:
    * Entering custom image sizes
-   * Resuming training from checkpoint
-   * Address hard-coded clustering parameters
