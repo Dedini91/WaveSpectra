@@ -144,7 +144,9 @@ image_id, dimensions, l1_sum = [], [], []
 def evaluate():
     log.info("Evaluating model...")
 
-    model.load_state_dict(torch.load(str(args['model_path'])))
+    checkpoint = torch.load(str(args['model_path']), map_location=torch.device(device))
+    model.load_state_dict(checkpoint['model_state_dict'])
+    
     if args['verbose']:
         log.info("Loading model from supplied model_path: {}".format(str(args['model_path']).replace("\\", '/')))
 
