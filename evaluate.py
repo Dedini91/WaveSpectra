@@ -17,8 +17,8 @@ from prettytable import PrettyTable
 from torchinfo import summary
 from utils.utils import *
 from models.WaveNet import WaveNet
-from utils.dataset import WaveSpectra
-from torchmetrics import StructuralSimilarityIndexMeasure, CosineSimilarity, MeanAbsoluteError
+from utils.dataset import WaveSpectraNPZ
+from torchmetrics import StructuralSimilarityIndexMeasure
 
 warnings.filterwarnings('ignore', category=UserWarning, message='TypedStorage is deprecated')
 
@@ -28,11 +28,9 @@ parser = argparse.ArgumentParser(description="Options for model evaluation")
 parser.add_argument("--verbose", action="store_true", default=False,
                     help="verbose output")
 parser.add_argument("--model_path", action="store", type=str, required=True,
-                    help="path to model and optimiser state_dict.pth files")
-parser.add_argument("--img_path", action="store", type=str, required=True,
-                    help="path to source images for evaluation and inference")
-parser.add_argument("--target_path", action="store", type=str, required=True,
-                    help="path to target images for evaluation and inference")
+                    help="path to checkpoint")
+parser.add_argument("-d", "--data", action="store", type=str, default='data', required=True,
+                    help="path to directory containing .npz files")
 parser.add_argument("--device", type=str, default='cuda', choices=['cuda', 'cpu'],
                     help="device")
 parser.add_argument("--save_preds", action="store_false", default=True,
@@ -89,60 +87,63 @@ if device == 'cuda':
     torch.backends.cudnn.benchmark = True
 if args['verbose']:
     log.info("\nDevice:\t" + str(device))
-print(args['img_path'])
-print(args['target_path'])
 
-# Get all image paths
-x_test_paths = glob(str(args['img_path']) + '/*.jpg')
-y_test_paths = glob(str(args['target_path']) + '/*.jpg')
+x_test_path = "data/x_test.npz"
+y_test_path = "data/y_test.npz"
+
+with np.load(x_test_path) as x_test_data:
+    x_test_data_files = x_test_data.files
+
+with np.load(y_test_path) as y_test_data:
+    y_test_data_files = y_test_data.files
 
 # Create Dataset using custom class in utils.dataset.py
-transformations = transforms.ToTensor()
-
-test = WaveSpectra(x_test_paths, y_test_paths, transform=transformations)
+test = WaveSpectraNPZ(x_test_path, y_test_path, x_test_data_files, y_test_data_files)
 
 # Define DataLoaders for train/val/test sets
 test_loader = DataLoader(test, batch_size=1, shuffle=False)
 test_loader.requires_grad = False
 
 log.info("==========================================================================================")
-# Setup CNN using custom class in models.model.py
-network = WaveNet()
-network.to(device)
+# Model setup
+model = WaveNet()
+model.to(device)
 
 if args['verbose']:
-    log.debug(summary(network, (1, 1, 64, 64), verbose=2))
+    log.debug(summary(model, (1, 1, 29, 24), verbose=2))
 
-for param in network.parameters():
-    param.requires_grad = True
+for param in model.parameters():
+    param.requires_grad = False
 
 total_samples = len(test)
 n_iter = math.ceil(total_samples / 1)
 
 if args['verbose']:
     log.info("Total samples: " + str(total_samples))
-    log.info("Batch size: " + str(1))
-    log.info("# iterations: " + str(n_iter))
 
 log.info("==========================================================================================")
-ssim = StructuralSimilarityIndexMeasure(reduction='elementwise_mean')
-cos = CosineSimilarity(reduction='mean')
-mae = MeanAbsoluteError()
-l1 = torch.nn.L1Loss(reduction='sum')
+
+
+def compute_ssim(output, target):
+    ssim_similarity = ssim(output, target)
+    ssim_loss = 1 - ssim_similarity
+    return ssim_similarity, ssim_loss
+
+
+ssim = StructuralSimilarityIndexMeasure(reduction='elementwise_mean').to(device)
+l1 = torch.nn.L1Loss(reduction='sum').to(device)
 
 log.info('Setup complete!')
 log.info("==========================================================================================")
 log.info("==========================================================================================")
 
 ssimLoss, ssimSim = [], []
-cosineLoss, cosineSim = [], []
 image_id, dimensions, l1_sum = [], [], []
 
 
 def evaluate():
     log.info("Evaluating model...")
 
-    model = WaveNet()
     model.load_state_dict(torch.load(str(args['model_path'])))
     if args['verbose']:
         log.info("Loading model from supplied model_path: {}".format(str(args['model_path']).replace("\\", '/')))
@@ -150,35 +151,34 @@ def evaluate():
     model.to(device)
     model.eval()
 
-    with tqdm(test_loader, unit="batch") as tepoch:
+    with tqdm(test_loader, unit="sample") as tepoch:
         with torch.no_grad():
             i = 0
             for data, target, data_index, target_index, data_orig in tepoch:
                 pred_path = Path.joinpath(eval_path, str(data_index[0]).split('.')[0])
                 pred_path.mkdir(parents=True, exist_ok=True)
+
+                data, data_min, data_max = min_max_01(data)
+                target, target_min, target_max = min_max_01(target)
+
                 data = data.to(device)
                 target = target.to(device)
                 tepoch.set_description(f"Evaluating")
                 output = model(data)
 
-                # Compute cosine similarity:
-                target_vec = torch.flatten(target, start_dim=1, end_dim=3)
-                output_vec = torch.flatten(output, start_dim=1, end_dim=3)
-                cosine_similarity = cos(output_vec, target_vec)  # Calculate loss
-                cosine_loss = 1 - cosine_similarity
-
                 # Compute SSIM
-                ssim_similarity = ssim(output, target)
-                ssim_loss = 1 - ssim_similarity
+                ssim_similarity, ssim_loss = compute_ssim(output, target)
 
                 # Compute l1 loss
                 l1_loss = l1(output, target)
 
                 l1_sum.append(l1_loss.item())
-                cosineLoss.append(cosine_loss.item())
                 ssimLoss.append(ssim_loss.item())
-                cosineSim.append(cosine_similarity.item())
                 ssimSim.append(ssim_similarity.item())
+
+                data = min_max_revert(data, data_min, data_max)
+                target = min_max_revert(target, target_min, target_max)
+                output = min_max_revert(output, target_min, target_max)
 
                 prediction = output.detach().cpu().numpy().squeeze()
 
@@ -188,7 +188,6 @@ def evaluate():
                               prediction,
                               l1_sum[-1],
                               ssimLoss[-1],
-                              cosineLoss[-1],
                               data_index[0],
                               pred_path)
 
@@ -197,17 +196,11 @@ def evaluate():
                 image_id.append(str(data_index[0]))
 
             results = PrettyTable(["L1 Loss",
-                                   " |",
-                                   "Cosine Loss",
-                                   "Cosine Similarity",
-                                   '| ',
+                                   '|',
                                    "SSIM Loss",
                                    "SSIM Similarity"])
             results.add_rows([['{:.4f}'.format(sum(l1_sum) / len(l1_sum)),
-                               ' |',
-                               '{:.4f}'.format(sum(cosineLoss) / len(cosineLoss)),
-                               '{:.4f}'.format(sum(cosineSim) / len(cosineSim)),
-                               '| ',
+                               '|',
                                '{:.4f}'.format(sum(ssimLoss) / len(ssimLoss)),
                                '{:.4f}'.format(sum(ssimSim) / len(ssimSim))]])
 
@@ -222,8 +215,6 @@ def losses_to_csv(name):
     loss_dict = {
         "Image ID": image_id,
         "L1/MAE": l1_sum,
-        "Cosine error": cosineLoss,
-        "Cosine similarity": cosineSim,
         "SSIM error": ssimLoss,
         "SSIM similarity": ssimSim
     }
