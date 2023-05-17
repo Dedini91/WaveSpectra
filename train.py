@@ -432,8 +432,8 @@ def train():
                 output = network(data)  # Forward pass
 
                 # Normalise output to same range as target
-                target_min, target_max = target.min(), target.max()
-                output = (output * (target_max - target_min)) + target_min
+#                 target_min, target_max = target.min(), target.max()
+#                 output = (output * (target_max - target_min)) + target_min
 
                 # Compute cosine similarity:
                 cosine_similarity, cosine_loss = compute_cosine(output, target)
@@ -538,8 +538,8 @@ def train():
                     output = network(data)
 
                     # Normalise output to same range as target
-                    target_min, target_max = target.min(), target.max()
-                    output = (output * (target_max - target_min)) + target_min
+#                     target_min, target_max = target.min(), target.max()
+#                     output = (output * (target_max - target_min)) + target_min
 
                     # Compute cosine similarity:
                     cosine_similarity, cosine_loss = compute_cosine(output, target)
