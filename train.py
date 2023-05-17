@@ -32,30 +32,36 @@ parser.add_argument("-n", "--name", action="store", type=str, required=True,
                     help="experiment name")
 parser.add_argument("-d", "--data", action="store", type=str, required=True,
                     help="path to processed dataset")
-parser.add_argument("--prototyping", action="store_true", default=False,
-                    help="prototyping mode (train on reduced dataset)")
 parser.add_argument("--track", action='store', type=str, required=False, default=None,
                     help="saves all predictions for a specified source image (file name only e.g. 00178)")
 parser.add_argument("--cache", action="store_true", default=False,
                     help="load complete dataset into RAM")
+parser.add_argument("--outputs", action="store_true", default=False,
+                    help="save images from each train/validation epoch")
+parser.add_argument("--num_workers", type=int, default=1,
+                    help="number of workers")
 parser.add_argument("--model_path", action="store", type=str, required=False,
+                    help="path to saved model")
+parser.add_argument("--resume", action="store_true", default=False,
                     help="path to saved model")
 parser.add_argument("--device", type=str, default='cuda', choices=['cuda', 'cpu'],
                     help="device")
+parser.add_argument("--optimizer", type=str, default='sgd', choices=['sgd', 'adamw'],
+                    help="optimizer")
+parser.add_argument("-m", "--momentum", type=float, default=0.9,
+                    help="momentum for SGD, beta1 for adam")
+parser.add_argument("--decay", type=float, default=0.0,
+                    help="weight decay rate (default off)")
 parser.add_argument("-e", "--num-epochs", type=int, default=20,
                     help="number of epochs")
 parser.add_argument("-b", "--batch-size", type=int, default=1,
                     help="batch size")
-parser.add_argument("--lr", "--learning_rate", type=float, default=0.00002,
-                    help="learning rate")
-parser.add_argument("-m", "--momentum", type=float, default=0.9,
-                    help="momentum for SGD, beta1 for adam")
 parser.add_argument("--scheduler", action="store_false", default=True,
                     help="learning rate scheduler - cosine annealing (pass argument to disable)")
+parser.add_argument("--lr", "--learning_rate", type=float, default=0.00001,
+                    help="learning rate")
 parser.add_argument("--lr_min", action="store", type=float, default=0.000005,
                     help="minimum learning rate for scheduler")
-parser.add_argument("--decay", type=float, default=0.0,
-                    help="weight decay rate (default off)")
 parser.add_argument("--interval", type=int, default=1,
                     help="model checkpoint interval (epochs)")
 
@@ -133,21 +139,26 @@ else:
     val = WaveSpectraNPZ(x_val_path, y_val_path, x_val_data_files, y_val_data_files)
     test = WaveSpectraNPZ(x_test_path, y_test_path, x_test_data_files, y_test_data_files)
 
+if args['resume']:
+    checkpoint = torch.load(str(args['model_path']))
+
+batch_size = args['batch_size'] if not args['resume'] else checkpoint['batch_size']
+
 # Define DataLoaders
 train_loader = DataLoader(train,
-                          batch_size=args['batch_size'],
+                          batch_size=batch_size,
                           shuffle=True,
-                          num_workers=2 if torch.cuda.is_available() else 0,
+                          num_workers=args['num_workers'] if torch.cuda.is_available() else 0,
                           pin_memory=True if torch.cuda.is_available() else False)
 val_loader = DataLoader(val,
-                        batch_size=args['batch_size'],
+                        batch_size=batch_size,
                         shuffle=True,
-                        num_workers=2 if torch.cuda.is_available() else 0,
+                        num_workers=args['num_workers'] if torch.cuda.is_available() else 0,
                         pin_memory=True if torch.cuda.is_available() else False)
 test_loader = DataLoader(test,
                          batch_size=1,
                          shuffle=False,
-                         num_workers=2 if torch.cuda.is_available() else 0,
+                         num_workers=args['num_workers'] if torch.cuda.is_available() else 0,
                          pin_memory=True if torch.cuda.is_available() else False)
 
 train_loader.requires_grad = True
@@ -188,12 +199,12 @@ def dataset_info():
         xte1 = x_test_sample[0].squeeze()
         yte1 = y_test_sample[0].squeeze()
 
-        t1 = PrettyTable([' ', '# pairs', 'Dimensions', "# pixels", "Datatype"])
+        t1 = PrettyTable([' ', '# pairs', 'Dimensions (x)', 'Dimensions (y)', "# pixels", "Datatype"])
         t1.add_rows(
             [
-                ["Train", str(len(train)), str(list(xtr1.size())), str(getinfo(xtr1)[1]), str(getinfo(xtr1)[2])],
-                ["Validation", str(len(val)), str(list(xva1.size())), str(getinfo(xva1)[1]), str(getinfo(xva1)[2])],
-                ["Test", str(len(test)), str(list(xte1.size())), str(getinfo(xte1)[1]), str(getinfo(xte1)[2])]
+                ["Train", str(len(train)), str(list(xtr1.size())), str(list(ytr1.size())), str(getinfo(xtr1)[1]), str(getinfo(xtr1)[2])],
+                ["Validation", str(len(val)), str(list(xva1.size())), str(list(yva1.size())), str(getinfo(xva1)[1]), str(getinfo(xva1)[2])],
+                ["Test", str(len(test)), str(list(xte1.size())), str(list(yte1.size())), str(getinfo(xte1)[1]), str(getinfo(xte1)[2])]
             ]
         )
 
@@ -221,6 +232,17 @@ optimizer = optim.AdamW(network.parameters(),
                         betas=(args['momentum'], 0.999),
                         weight_decay=args['decay'])
 
+if args['optimizer'] == 'adamw':
+    optimizer = optim.AdamW(network.parameters(),
+                            lr=float(args['lr']),
+                            betas=(args['momentum'], 0.999),
+                            weight_decay=args['decay'])
+elif args['optimizer'] == 'SGD':
+    optimizer = optim.SGD(network.parameters(),
+                          lr=float(args['lr']),
+                          momentum=args['momentum'],
+                          weight_decay=args['decay'])
+
 if args['scheduler']:
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args['num_epochs'], eta_min=args['lr_min'])
 
@@ -228,7 +250,40 @@ test_interval = args['interval']
 
 dataset_info()
 
-if args['verbose']:
+if args['resume']:
+    # load the model checkpoint
+    log.info("Resuming training from saved checkpoint...")
+    log.info("Loading checkpoint from supplied model_path: {}".format(str(args['model_path']).replace("\\", '/')))
+    network.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+    log.info("Model state_dict loaded")
+    log.info("Optimizer state_dict loaded")
+    log.info("Scheduler state_dict loaded")
+
+    epochs = checkpoint['epoch']
+    new_epochs = checkpoint['total_epochs'] - (epochs + 1)
+    log.info(f"Previously trained for {epochs + 1}/{checkpoint['total_epochs']} epochs")
+    log.info(f"Training for {new_epochs} more epochs...")
+
+    batch_size = checkpoint['batch_size']
+
+    log.info(f"\nCreated experiment directories at:\t{filepath}")
+    log.info("\nDevice:\t" + str(device))
+    if args['cache']:
+        log.info("\nData stored in RAM for faster retrieval")
+    else:
+        log.info("\nLoading data lazily")
+
+    if args['outputs']:
+        log.info("\nSaving training/validation images each epoch")
+
+    log.info("Total samples: \t\t" + str(total_samples))
+    log.info("Batch size: \t\t" + str(batch_size))
+    log.info("# iterations: \t\t" + str(n_iter))
+    log.info('\nSetup complete!\n')
+
+if args['verbose'] and not args['resume']:
     log.info("\nArguments parsed - Current configuration:")
     for k, v in args.items():
         log.info("{:<15} {:<10}".format(str(k), str(v)))
@@ -236,13 +291,19 @@ if args['verbose']:
     log.info(f"\nCreated experiment directories at:\t{filepath}")
     log.info("\nDevice:\t" + str(device))
     if args['cache']:
-        log.info("Data stored in RAM for faster retrieval")
+        log.info("\nData stored in RAM for faster retrieval")
+    else:
+        log.info("\nLoading data lazily")
+
+    if args['outputs']:
+        log.info("\nSaving training/validation images each epoch")
     if args['scheduler']:
-        log.info("Using cosine learning rate annealing:")
+        log.info("\nUsing cosine learning rate annealing:")
         log.info("Max lr: {} - Min lr: {}".format(float(args['lr']), float(args['lr_min'])))
+    log.info("\nOptimiser: {}".format(args['optimizer']))
     log.info("\nNumber of epochs: \t" + str(args['num_epochs']))
     log.info("Total samples: \t\t" + str(total_samples))
-    log.info("Batch size: \t\t" + str(args['batch_size']))
+    log.info("Batch size: \t\t" + str(batch_size))
     log.info("# iterations: \t\t" + str(n_iter))
     log.info('\nSetup complete!\n')
 
@@ -260,7 +321,6 @@ cosine_training_similarities, ssim_training_similarities = [], []
 cosine_validation_similarities, ssim_validation_similarities = [], []
 
 ssim = StructuralSimilarityIndexMeasure(reduction='elementwise_mean').to(device)
-# cos = CosineSimilarity(reduction='mean').to(device)
 cos = nn.CosineSimilarity(dim=1, eps=1e-6).to(device)
 l1 = torch.nn.L1Loss(reduction='sum').to(device)
 
@@ -309,13 +369,17 @@ def train():
     check_l1 = True
     add_l1 = False
 
-    if args['model_path']:
+    if args['resume']:
+        run_load = True
+
+    if args['model_path'] and not args['resume']:
         network.load_state_dict(torch.load(str(args['model_path'])))
         if args['verbose']:
             log.info("Loading model from supplied model_path: {}".format(str(args['model_path']).replace("\\", '/')))
 
-    for epoch in range(args['num_epochs']):
-        if epoch > 1 and epoch % 5 == 0:
+    for epoch in range(0 if not args['resume'] else (epochs + 1),
+                       args['num_epochs'] if not args['resume'] else checkpoint['total_epochs']):
+        if epoch > 1 and epoch % args['interval'] == 0:
             plot_losses(metrics_path, training_losses, validation_losses)
             plot_l1_losses(metrics_path, l1_training_losses, l1_validation_losses)
             plot_ssim_losses(metrics_path, ssim_training_losses, ssim_validation_losses)
@@ -346,19 +410,28 @@ def train():
         ssim_validation_similarity = 0
         cosine_validation_similarity = 0
 
+        if args['resume'] and run_load:
+            check_l1 = checkpoint['check_l1']
+            add_l1 = checkpoint['add_l1']
+            best_loss = checkpoint['best_loss']
+            last_loss = checkpoint['last_loss']
+            no_improvement = checkpoint['no_improvement']
+            run_load = False
+
         with tqdm(train_loader, unit="batch") as tepoch:
             for data, target, index, data_orig in tepoch:
-                # data, data_min, data_max = min_max_01(data)
-                # target_norm, target_min, target_max = min_max_01(target)
-
                 i += 1
                 data = data.to(device)
                 target = target.to(device)
-                epoch_counter = f"Epoch {epoch + 1}/{args['num_epochs']}"
+                if args['resume']:
+                    epoch_counter = f"Epoch {epoch + 1}/{checkpoint['total_epochs']}"
+                else:
+                    epoch_counter = f"Epoch {epoch + 1}/{args['num_epochs']}"
                 tepoch.set_description(epoch_counter)
                 optimizer.zero_grad(set_to_none=True)  # Clear gradients
                 output = network(data)  # Forward pass
 
+                # Normalise output to same range as target
                 target_min, target_max = target.min(), target.max()
                 output = (output * (target_max - target_min)) + target_min
 
@@ -373,11 +446,9 @@ def train():
 
                 if not add_l1:
                     loss = cosine_loss + ssim_loss
-                    # loss = ssim_loss
                     l1_loss.detach()
                 else:
                     loss = cosine_loss + ssim_loss + (l1_loss * 0.1)
-                    # loss = ssim_loss + (l1_loss * 0.1)
 
                 training_loss += loss.detach().item()
                 l1_training_loss += l1_loss.detach().item()
@@ -388,12 +459,6 @@ def train():
 
                 loss.backward()  # Calculate gradients
                 optimizer.step()  # Update weights
-
-                # data = min_max_revert(data, data_min, data_max)
-                # # target = min_max_revert(target, target_min, target_max)
-                # output = min_max_revert(output, target_min, target_max)
-
-                # network.apply(clipper)
 
                 if args['verbose']:
                     tepoch.set_postfix(loss=loss.item())
@@ -441,32 +506,30 @@ def train():
         train_path = (str(filepath) + "/predictions/" + "training/" + 'epoch_{}'.format(epoch + 1)).replace('\\', '/')
         val_path = (str(filepath) + "/predictions/" + "validation/" + 'epoch_{}'.format(epoch + 1)).replace('\\', '/')
 
-        if not os.path.exists(train_path):
-            os.mkdir(train_path)
-        if not os.path.exists(val_path):
-            os.mkdir(val_path)
-
         if len(prediction.shape) == 2:
             prediction_fixed = np.expand_dims(prediction, axis=0)
             prediction = prediction_fixed
 
-        save_examples(data_orig.detach().cpu().numpy().squeeze(),
-                      target.detach().cpu().numpy().squeeze(),
-                      prediction,
-                      'Training',
-                      epoch,
-                      index,
-                      filepath,
-                      args['batch_size'])
+        if args['outputs']:
+            if not os.path.exists(train_path):
+                os.mkdir(train_path)
+            if not os.path.exists(val_path):
+                os.mkdir(val_path)
+
+            save_examples(data_orig.detach().cpu().numpy().squeeze(),
+                          target.detach().cpu().numpy().squeeze(),
+                          prediction,
+                          'Training',
+                          epoch,
+                          index,
+                          filepath,
+                          args['batch_size'])
 
         # =============================================================================#
         iters = 0
         with torch.no_grad():
             with tqdm(val_loader, unit="batch") as tepoch:
                 for data, target, index, data_orig in tepoch:
-                    # data, data_min, data_max = min_max_01(data)
-                    # target, target_min, target_max = min_max_01(target)
-
                     data = data.to(device)
                     target = target.to(device)
                     indent = ' ' * len(epoch_counter)
@@ -474,6 +537,7 @@ def train():
                     optimizer.zero_grad()
                     output = network(data)
 
+                    # Normalise output to same range as target
                     target_min, target_max = target.min(), target.max()
                     output = (output * (target_max - target_min)) + target_min
 
@@ -488,11 +552,9 @@ def train():
 
                     if not add_l1:
                         loss = cosine_loss + ssim_loss
-                        # loss = ssim_loss
                         l1_loss.detach()
                     else:
                         loss = cosine_loss + ssim_loss + (l1_loss * 0.1)
-                        # loss = ssim_loss + (l1_loss * 0.1)
 
                     validation_loss += loss.item()
                     l1_validation_loss += l1_loss.item()
@@ -506,14 +568,10 @@ def train():
                     if (epoch + 1) % (args['num_epochs']) == 0:
                         image_id.append(str(index[0]))
                         l1_sum.append(l1_loss.item())
-                        ssimLoss.append(ssim_loss.detach().cpu().numpy())
-                        cosineLoss.append(cosine_loss.detach().cpu().numpy())
-                        ssimSim.append(ssim_similarity.detach().cpu().numpy())
-                        cosineSim.append(cosine_similarity.detach().cpu().numpy())
-
-                    # data = min_max_revert(data, data_min, data_max)
-                    # target = min_max_revert(target, target_min, target_max)
-                    # output = min_max_revert(output, target_min, target_max)
+                        ssimLoss.append(torch.Tensor.tolist(ssim_loss))
+                        cosineLoss.append(torch.Tensor.tolist(cosine_loss[0]))
+                        ssimSim.append(torch.Tensor.tolist(ssim_similarity))
+                        cosineSim.append(torch.Tensor.tolist(cosine_similarity[0]))
 
                     iters += 1  # for calculating means across validation iterations
 
@@ -523,14 +581,15 @@ def train():
                 prediction_fixed = np.expand_dims(prediction, axis=0)
                 prediction = prediction_fixed
 
-            save_examples(data_orig.detach().cpu().numpy().squeeze(),
-                          target.detach().cpu().numpy().squeeze(),
-                          prediction,
-                          'Validation',
-                          epoch,
-                          index,
-                          filepath,
-                          args['batch_size'])
+            if args['outputs']:
+                save_examples(data_orig.detach().cpu().numpy().squeeze(),
+                              target.detach().cpu().numpy().squeeze(),
+                              prediction,
+                              'Validation',
+                              epoch,
+                              index,
+                              filepath,
+                              args['batch_size'])
 
             writer.add_scalar("Loss/validation", loss, epoch)
 
@@ -570,9 +629,25 @@ def train():
                                                'Validation': cosine_validation_loss},
                                global_step=epoch)
 
+        # save model checkpoint
         if (epoch + 1) % test_interval == 0:
-            torch.save(network.state_dict(), str(model_path) + "/last_model.pth")
-            torch.save(optimizer.state_dict(), str(model_path) + "/last_optimizer.pth")
+            if epoch == 0:
+                best_loss = last_loss = validation_loss
+
+            total_epochs = checkpoint['total_epochs'] if args['resume'] else args['num_epochs']
+
+            torch.save({'epoch': epoch,
+                        'total_epochs': total_epochs,
+                        'model_state_dict': network.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'scheduler_state_dict': scheduler.state_dict(),
+                        'check_l1': check_l1,
+                        'add_l1': add_l1,
+                        'best_loss': best_loss,
+                        'last_loss': last_loss,
+                        'no_improvement': no_improvement,
+                        'batch_size': batch_size},
+                       str(model_path) + "/last.pth")
             if args['verbose']:
                 log.info('Saved model checkpoint')
 
@@ -581,8 +656,18 @@ def train():
             no_improvement = 0
 
         if validation_loss <= best_loss or epoch == 0:
-            torch.save(network.state_dict(), str(model_path) + "/best_model.pth")
-            torch.save(optimizer.state_dict(), str(model_path) + "/best_optimizer.pth")
+            torch.save({'epoch': epoch,
+                        'total_epochs': args['num_epochs'],
+                        'model_state_dict': network.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'scheduler_state_dict': scheduler.state_dict(),
+                        'check_l1': check_l1,
+                        'add_l1': add_l1,
+                        'best_loss': validation_loss,
+                        'last_loss': last_loss,
+                        'no_improvement': no_improvement,
+                        'batch_size': batch_size},
+                       str(model_path) + "/best.pth")
             best_loss = validation_loss
             no_improvement = 0
             if args['verbose']:
@@ -619,9 +704,6 @@ def train():
         log.info(epoch_results)
         log.info("\n")
 
-        if device == 'cuda':
-            torch.cuda.empy_cache()
-
     log.info("\n\nTraining complete!\n")
 
     log.info("Best training loss:\t{:.6f}\n"
@@ -652,11 +734,14 @@ def evaluate():
     log.info("Evaluating model...")
 
     model = WaveNet()
-    if args['model_path'] is None:
+    if args['model_path'] is None:  # No model path specified: Use the current best model
         model.load_state_dict(torch.load(str(model_path) + "/best_model.pth"))
         if args['verbose']:
             log.info("model_path not supplied - loading : {}/best_model.pth".format(str(model_path).replace('\\', '/')))
-    else:
+    elif args['model_path'] is not None and args['resume']:     # Model path specified, resume True: Use *non-argparse
+        model.load_state_dict(torch.load(str(model_path) + "/best.pth"))
+        log.info("Training resumed from previous - loading : {}/best.pth".format(str(model_path).replace('\\', '/')))
+    else:   # Model path specified, resume False: Use arg['model_path']
         model.load_state_dict(torch.load(str(args['model_path'])))
         if args['verbose']:
             log.info("Loading model from supplied model_path: {}".format(str(args['model_path']).replace("\\", '/')))
@@ -668,9 +753,6 @@ def evaluate():
         with torch.no_grad():
             i = 0
             for data, target, index, data_orig in tepoch:
-                # data, data_min, data_max = min_max_01(data)
-                # target, target_min, target_max = min_max_01(target)
-
                 data = data.to(device)
                 target = target.to(device)
                 tepoch.set_description(f"Evaluating")
@@ -693,7 +775,7 @@ def evaluate():
                                prediction,
                                torch.Tensor.tolist(test_l1),
                                torch.Tensor.tolist(ssim_similarity),
-                               torch.Tensor.tolist(cosine_similarity),
+                               torch.Tensor.tolist(cosine_similarity[0]),
                                index,
                                filepath)
                 i += 1
@@ -701,9 +783,9 @@ def evaluate():
                 image_id.append(str(index[0]))
                 l1_sum.append(torch.Tensor.tolist(l1_loss))
                 ssimLoss.append(torch.Tensor.tolist(ssim_loss))
-                cosineLoss.append(torch.Tensor.tolist(cosine_loss))
+                cosineLoss.append(torch.Tensor.tolist(cosine_loss[0]))
                 ssimSim.append(torch.Tensor.tolist(ssim_similarity))
-                cosineSim.append(torch.Tensor.tolist(cosine_similarity))
+                cosineSim.append(torch.Tensor.tolist(cosine_similarity[0]))
 
     return None
 
@@ -719,6 +801,7 @@ def losses_to_csv(name):
     }
     df = DataFrame.from_dict(loss_dict)
     df = df.sort_values(by='L1/MAE', ascending=True)
+    df = df.round(6)
     log.info(name + ":")
     log.info(df)
 
