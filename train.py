@@ -735,7 +735,7 @@ def evaluate():
 
     model = WaveNet()
     if args['model_path'] is None:  # No model path specified: Use the current best model
-        eval_checkpoint = torch.load(str(model_path))
+        eval_checkpoint = torch.load(str(model_path) + "/best.pth")
         model.load_state_dict(eval_checkpoint['model_state_dict'])
         if args['verbose']:
             log.info("model_path not supplied - loading : {}/best.pth".format(str(model_path).replace('\\', '/')))
