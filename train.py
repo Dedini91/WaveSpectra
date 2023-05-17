@@ -140,7 +140,7 @@ else:
     test = WaveSpectraNPZ(x_test_path, y_test_path, x_test_data_files, y_test_data_files)
 
 if args['resume']:
-    checkpoint = torch.load(str(args['model_path']))
+    checkpoint = torch.load(str(args['model_path']), map_location=torch.device(device))
 
 batch_size = args['batch_size'] if not args['resume'] else checkpoint['batch_size']
 
