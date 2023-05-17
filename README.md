@@ -31,8 +31,8 @@ Example usage:
 python make_balanced_dataset.py -d path/to/data_folder -n new_dataset_test -c 50 --split 80 20 10
 ```
 ```python
-python train.py -n exp_name --verbose --cache -d path/to/folder/containing/npz_files -b 1 -e 30 --lr 0.00001 --track 05902 --outputs --device cuda
-python train.py -n resume_exp --verbose --cache -d path/to/folder/containing/npz_files --model_path path/to/model/last.pth --track 05902 --outputs --device cuda --resume
+python train.py -n exp_name --verbose --cache -d path/to/folder/containing/npz_files -b 1 -e 30 --lr 0.00001 --track 05902 --outputs --device cuda --num_workers 1
+python train.py -n resume_exp --verbose --cache -d path/to/folder/containing/npz_files --model_path path/to/model/last.pth --track 05902 --outputs --device cuda --resume --num_workers 1
 ```
 ```python
 python evaluate.py --model_path path/to/best_model.pth -d path/to/folder/containing/npz_files --verbose --device cuda
