@@ -49,6 +49,7 @@ For each script, there are only a few required arguments.
 
 ## 1. **Preprocess raw data and make dataset**
 > Use "get_data.ipynb" to retrieve and save raw data in compressed .npz format
+> Download data from Colab and perform dataset creation locally
 
 * **make_balanced_dataset.py**
    * Perform PCA, and Constrained KMeans
@@ -61,7 +62,6 @@ For each script, there are only a few required arguments.
     -s      --split             str-None            'number of train/val/test samples per cluster. e.g. --split 50 20 10"'
     -c      --clusters          str-None            'number of clusters (classes)'
 ```
-
 ---
 
 ## 2. **Training**
