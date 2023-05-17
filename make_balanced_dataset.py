@@ -1,25 +1,25 @@
-from utils import clustering, clustering_utils as utils
-from k_means_constrained import KMeansConstrained
-import matplotlib.pyplot as plt
-from itertools import compress
+import numpy as np
+import os
 from pathlib import Path
 from tqdm import tqdm
-import numpy as np
-import argparse
 import random
 import shutil
+import argparse
+from itertools import compress
+import matplotlib.pyplot as plt
+from utils import clustering, clustering_utils as utils
 import torch
-import os
+from k_means_constrained import KMeansConstrained
 
 
 parser = argparse.ArgumentParser(description="Preprocessing options")
-parser.add_argument("-d", "--data", action="store", type=str, default='data', required=True,
-                    help="path to parent directory of raw data folder")
+parser.add_argument("-d", "--data", action="store", type=str, default=None, required=True,
+                    help="path to directory containing .npz files")
 parser.add_argument("-n", "--name", action="store", type=str, required=True,
                     help="dataset name")
-parser.add_argument('--split', nargs='+', type=int, required=True,
+parser.add_argument("-s", "--split", nargs='+', type=int, required=True,
                     help="number of train/val/test samples per cluster. e.g. --split 50 20 10")
-parser.add_argument("-c", type=int, default=None, required=True,
+parser.add_argument("-c", "--clusters", type=int, default=None, required=True,
                     help="number of clusters (classes)")
 
 args = parser.parse_args()
@@ -45,15 +45,15 @@ temp_paths = {'x_path': str(root_path) + '/interim/Offshore/',
 
 image_paths = list(Path(temp_paths['x_path']).rglob('*.npy'))
 
-# os.makedirs(str(root_path) + '/interim')
-# os.makedirs(temp_paths['x_path'])
-# os.makedirs(temp_paths['y_path'])
-#
-# for i in range(0, numSamples):
-#     x_img = x_data[str(i).zfill(5)].astype(np.float32)
-#     np.save("data/interim/Offshore/"+str(i).zfill(5)+".npy", x_img)
-#     y_img = y_data[str(i).zfill(5)].astype(np.float32)
-#     np.save("data/interim/NearShore/" + str(i).zfill(5) + ".npy", y_img)
+os.makedirs(str(root_path) + '/interim')
+os.makedirs(temp_paths['x_path'])
+os.makedirs(temp_paths['y_path'])
+
+for i in range(0, numSamples):
+    x_img = x_data[str(i).zfill(5)].astype(np.float32)
+    np.save("data/interim/Offshore/"+str(i).zfill(5)+".npy", x_img)
+    y_img = y_data[str(i).zfill(5)].astype(np.float32)
+    np.save("data/interim/NearShore/" + str(i).zfill(5) + ".npy", y_img)
 
 print("Created interim folders (.npy) files")
 print("Converting images -> vectors")
