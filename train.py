@@ -735,14 +735,17 @@ def evaluate():
 
     model = WaveNet()
     if args['model_path'] is None:  # No model path specified: Use the current best model
-        model.load_state_dict(torch.load(str(model_path) + "/best.pth"))
+        eval_checkpoint = torch.load(str(model_path))
+        model.load_state_dict(eval_checkpoint['model_state_dict'])
         if args['verbose']:
             log.info("model_path not supplied - loading : {}/best.pth".format(str(model_path).replace('\\', '/')))
     elif args['model_path'] is not None and args['resume']:     # Model path specified, resume True: Use *non-argparse
-        model.load_state_dict(torch.load(str(model_path) + "/best.pth"))
+        eval_checkpoint = torch.load(str(model_path) + "/best.pth")
+        model.load_state_dict(checkpoint['model_state_dict'])
         log.info("Training resumed from previous - loading : {}/best.pth".format(str(model_path).replace('\\', '/')))
     else:   # Model path specified, resume False: Use arg['model_path']
-        model.load_state_dict(torch.load(str(args['model_path'])))
+        eval_checkpoint = torch.load(str(args['model_path']))
+        model.load_state_dict(checkpoint['model_state_dict'])
         if args['verbose']:
             log.info("Loading model from supplied model_path: {}".format(str(args['model_path']).replace("\\", '/')))
 
