@@ -18,7 +18,7 @@ from torchinfo import summary
 from torch.utils.tensorboard import SummaryWriter
 from utils.utils import *
 from models.WaveNet import WaveNet
-from utils.dataset import WaveSpectraInf
+from utils.dataset import WaveSpectraInfNPZ
 
 warnings.filterwarnings('ignore', category=UserWarning, message='TypedStorage is deprecated')
 
@@ -27,7 +27,7 @@ parser = argparse.ArgumentParser(description="Options for inference")
 
 parser.add_argument("--model_path", action="store", type=str, required=True,
                     help="path to model and optimiser state_dict.pth files")
-parser.add_argument("--img_path", action="store", type=str, required=True,
+parser.add_argument("-d", "--data_path", action="store", type=str, required=True,
                     help="path to folder containing source images")
 parser.add_argument("--device", type=str, default='cuda', choices=['cuda', 'cpu'],
                     help="device")
@@ -57,16 +57,15 @@ if device == 'cuda':
     torch.backends.cudnn.benchmark = True
 print("\nDevice:\t" + str(device))
 
-# Get all image paths
-x_test_paths = glob(args['img_path'] + '/*.jpg')
-y_test_paths = glob(args['img_path'] + '/*.jpg')
+data_path = args['data_path']
+
+with np.load(data_path) as test_data:
+    data_files = test_data.files
 
 # Create Dataset using custom class in utils.dataset.py
-transformations = transforms.ToTensor()
+inf = WaveSpectraInfNPZ(data_path, data_files)
 
-inf = WaveSpectraInf(x_test_paths, transform=transformations)
-
-# Define DataLoaders for train/val/test sets
+# Define DataLoader
 inf_loader = DataLoader(inf, batch_size=1, shuffle=False)
 inf_loader.requires_grad = False
 
@@ -78,14 +77,12 @@ network.to(device)
 print(summary(network, (1, 1, 29, 24), verbose=2))
 
 for param in network.parameters():
-    param.requires_grad = True
+    param.requires_grad = False
 
 total_samples = len(inf)
 n_iter = math.ceil(total_samples / 1)
 
 print("Total samples: " + str(total_samples))
-print("Batch size: " + str(1))
-print("# iterations: " + str(n_iter))
 
 print('Setup complete!')
 print("==========================================================================================")
@@ -93,29 +90,45 @@ print("=========================================================================
 
 
 def predict():
-    print("Evaluating model...")
+    print("Generating predictions...")
     model = WaveNet()
-    model.load_state_dict(torch.load(str(args['model_path'])))
+    model.load_state_dict(torch.load(str(args['model_path']), map_location=torch.device(device)))
     print("Loading model from supplied model_path: {}".format(str(args['model_path']).replace("\\", '/')))
     model.to(device)
     model.eval()
 
-    with tqdm(inf_loader, unit="batch") as tepoch:
+    array_data = [None] * total_samples
+    array_name = [None] * total_samples
+
+    i = 0
+
+    with tqdm(inf_loader, unit="sample") as tepoch:
         with torch.no_grad():
             for data, data_index in tepoch:
+                data, data_min, data_max = min_max_01(data)
+
                 data = data.to(device)
                 tepoch.set_description(f"Inference")
                 output = model(data)
-
-                output_min, output_max = output.min(), output.max()
-                target_min, target_max = 0.01, 0.85
-                output = (output - output_min) / (output_max - output_min) * (target_max - target_min) + target_min
 
                 prediction = output.detach().cpu().numpy().squeeze()
 
                 save_prediction(prediction,
                                 data_index[0],
                                 inf_path)
+
+                array_data[i] = prediction
+                array_name[i] = str(data_index).split(".")[0][2:7]
+
+                i += 1
+
+    data_dict = dict(zip(array_name, array_data))
+
+    dict_keys = list(data_dict.keys())
+    dict_keys.sort()
+    sorted_data = {i: data_dict[i] for i in dict_keys}
+
+    np.savez_compressed(str(inf_path) + "/predictions", **sorted_data)
 
     return None
 
