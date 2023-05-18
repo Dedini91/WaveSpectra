@@ -52,15 +52,15 @@ parser.add_argument("-m", "--momentum", type=float, default=0.9,
                     help="momentum for SGD, beta1 for adam")
 parser.add_argument("--decay", type=float, default=0.0,
                     help="weight decay rate (default off)")
-parser.add_argument("-e", "--num-epochs", type=int, default=20,
+parser.add_argument("-e", "--num-epochs", type=int, default=50,
                     help="number of epochs")
 parser.add_argument("-b", "--batch-size", type=int, default=1,
                     help="batch size")
-parser.add_argument("--scheduler", action="store", type=str, default='cosine', choices=['cosine', 'plateau'],
+parser.add_argument("--scheduler", action="store", type=str, default='plateau', choices=['cosine', 'plateau'],
                     help="learning rate scheduler")
 parser.add_argument("--lr", "--learning_rate", type=float, default=0.00001,
                     help="learning rate")
-parser.add_argument("--lr_min", action="store", type=float, default=0.000005,
+parser.add_argument("--lr_min", action="store", type=float, default=0.0000001,
                     help="minimum learning rate for scheduler")
 parser.add_argument("--interval", type=int, default=1,
                     help="model checkpoint interval (epochs)")
