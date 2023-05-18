@@ -344,18 +344,8 @@ class WaveNet(nn.Module):
             nn.AvgPool2d((2, 2), (2, 2), padding=0)
         )
 
-        self.clean1.apply(init_layers)
-        self.clean2.apply(init_layers)
-        self.clean3.apply(init_layers)
-        self.clean4.apply(init_layers)
-        self.clean5.apply(init_layers)
-        self.clean6.apply(init_layers)
-        self.clean7.apply(init_layers)
-        self.clean8.apply(init_layers)
-        self.clean9.apply(init_layers)
-
         self.conv_out10 = nn.Conv2d(4, 1, (1, 1), (1, 1))  # 64x64x64 -> 1x64x64
-        nn.init.xavier_uniform_(self.conv_out5.weight)
+        self.conv_out10.apply(init_layers)
 
     def forward(self, input):
         w = self.input_layer1(input)
@@ -439,7 +429,6 @@ class WaveNet(nn.Module):
         w = self.relu(self.conv_out9(w))
         w = self.clean9(w)
 
-        # output = normalise_to_source(input, sigmoid(self.conv_out10(w)))
-        output = sigmoid(self.conv_out10(w))
+        output = self.conv_out10(w)
 
         return output
