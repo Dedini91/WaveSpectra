@@ -46,7 +46,7 @@ parser.add_argument("--resume", action="store_true", default=False,
                     help="path to saved model")
 parser.add_argument("--device", type=str, default='cuda', choices=['cuda', 'cpu'],
                     help="device")
-parser.add_argument("--optimizer", type=str, default='sgd', choices=['sgd', 'adamw'],
+parser.add_argument("-o", "--optimizer", type=str, default='sgd', choices=['sgd', 'adamw'],
                     help="optimizer")
 parser.add_argument("-m", "--momentum", type=float, default=0.9,
                     help="momentum for SGD, beta1 for adam")
@@ -56,8 +56,8 @@ parser.add_argument("-e", "--num-epochs", type=int, default=20,
                     help="number of epochs")
 parser.add_argument("-b", "--batch-size", type=int, default=1,
                     help="batch size")
-parser.add_argument("--scheduler", action="store_false", default=True,
-                    help="learning rate scheduler - cosine annealing (pass argument to disable)")
+parser.add_argument("--scheduler", action="store", type=str, default='cosine', choices=['cosine', 'plateau'],
+                    help="learning rate scheduler")
 parser.add_argument("--lr", "--learning_rate", type=float, default=0.00001,
                     help="learning rate")
 parser.add_argument("--lr_min", action="store", type=float, default=0.000005,
@@ -243,8 +243,16 @@ elif args['optimizer'] == 'SGD':
                           momentum=args['momentum'],
                           weight_decay=args['decay'])
 
-if args['scheduler']:
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args['num_epochs'], eta_min=args['lr_min'])
+if args['scheduler'] == 'cosine':
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,
+                                                     T_max=args['num_epochs'],
+                                                     eta_min=args['lr_min'])
+elif args['scheduler'] == 'plateau':
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                     mode='min',
+                                                     factor=0.8,
+                                                     patience=3,
+                                                     min_lr=args['lr_min'])
 
 test_interval = args['interval']
 
@@ -297,8 +305,11 @@ if args['verbose'] and not args['resume']:
 
     if args['outputs']:
         log.info("\nSaving training/validation images each epoch")
-    if args['scheduler']:
-        log.info("\nUsing cosine learning rate annealing:")
+    if args['scheduler'] == 'cosine':
+        log.info("\nUsing Cosine Annealed learning rate:")
+        log.info("Max lr: {} - Min lr: {}".format(float(args['lr']), float(args['lr_min'])))
+    elif args['scheduler'] == 'plateau':
+        log.info("\nUsing Reduce on Plateau learning rate:")
         log.info("Max lr: {} - Min lr: {}".format(float(args['lr']), float(args['lr_min'])))
     log.info("\nOptimiser: {}".format(args['optimizer']))
     log.info("\nNumber of epochs: \t" + str(args['num_epochs']))
@@ -432,8 +443,8 @@ def train():
                 output = network(data)  # Forward pass
 
                 # Normalise output to same range as target
-#                 target_min, target_max = target.min(), target.max()
-#                 output = (output * (target_max - target_min)) + target_min
+                # target_min, target_max = target.min(), target.max()
+                # output = (output * (target_max - target_min)) + target_min
 
                 # Compute cosine similarity:
                 cosine_similarity, cosine_loss = compute_cosine(output, target)
@@ -498,8 +509,10 @@ def train():
 
         writer.add_scalar("Learning rate/Cosine", lr_schedule, epoch)
 
-        if args['scheduler']:
+        if args['scheduler'] == 'cosine':
             scheduler.step()
+        elif args['scheduler'] == 'plateau':
+            scheduler.step(loss)
 
         prediction = output.detach().cpu().numpy().squeeze()
 
@@ -538,8 +551,8 @@ def train():
                     output = network(data)
 
                     # Normalise output to same range as target
-#                     target_min, target_max = target.min(), target.max()
-#                     output = (output * (target_max - target_min)) + target_min
+                    # target_min, target_max = target.min(), target.max()
+                    # output = (output * (target_max - target_min)) + target_min
 
                     # Compute cosine similarity:
                     cosine_similarity, cosine_loss = compute_cosine(output, target)
