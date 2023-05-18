@@ -88,8 +88,8 @@ if device == 'cuda':
 if args['verbose']:
     log.info("\nDevice:\t" + str(device))
 
-x_test_path = "data/x_test.npz"
-y_test_path = "data/y_test.npz"
+x_test_path = args['data'] + "/x_test.npz"
+y_test_path = args['data'] + "/y_test.npz"
 
 with np.load(x_test_path) as x_test_data:
     x_test_data_files = x_test_data.files
