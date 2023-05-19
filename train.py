@@ -33,11 +33,11 @@ parser.add_argument("-n", "--name", action="store", type=str, required=True,
 parser.add_argument("-d", "--data", action="store", type=str, required=True,
                     help="path to processed dataset")
 parser.add_argument("--track", action='store', type=str, required=False, default=None,
-                    help="saves all predictions for a specified source image (file name only e.g. 00178)")
+                    help="saves all predictions for a specified source image (file name only e.g. 05902)")
 parser.add_argument("--cache", action="store_true", default=False,
                     help="load complete dataset into RAM")
-parser.add_argument("--outputs", action="store_true", default=False,
-                    help="save images from each train/validation epoch")
+parser.add_argument("--outputs", action="store_false", default=True,
+                    help="toggle saving predictions from each train/validation epoch (default True)")
 parser.add_argument("--num_workers", type=int, default=1,
                     help="number of workers")
 parser.add_argument("--model_path", action="store", type=str, required=False,
@@ -52,15 +52,15 @@ parser.add_argument("-m", "--momentum", type=float, default=0.9,
                     help="momentum for SGD, beta1 for adam")
 parser.add_argument("--decay", type=float, default=0.0,
                     help="weight decay rate (default off)")
-parser.add_argument("-e", "--num-epochs", type=int, default=20,
+parser.add_argument("-e", "--num-epochs", type=int, default=100
                     help="number of epochs")
 parser.add_argument("-b", "--batch-size", type=int, default=1,
                     help="batch size")
-parser.add_argument("--scheduler", action="store", type=str, default='cosine', choices=['cosine', 'plateau'],
+parser.add_argument("--scheduler", action="store", type=str, default='plateau', choices=['cosine', 'plateau'],
                     help="learning rate scheduler")
 parser.add_argument("--lr", "--learning_rate", type=float, default=0.00001,
                     help="learning rate")
-parser.add_argument("--lr_min", action="store", type=float, default=0.000005,
+parser.add_argument("--lr_min", action="store", type=float, default=0.0000001,
                     help="minimum learning rate for scheduler")
 parser.add_argument("--interval", type=int, default=1,
                     help="model checkpoint interval (epochs)")
