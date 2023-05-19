@@ -88,8 +88,8 @@ if device == 'cuda':
 if args['verbose']:
     log.info("\nDevice:\t" + str(device))
 
-x_test_path = args['data'] + "/x_test.npz"
-y_test_path = args['data'] + "/y_test.npz"
+x_test_path = "data/x_test.npz"
+y_test_path = "data/y_test.npz"
 
 with np.load(x_test_path) as x_test_data:
     x_test_data_files = x_test_data.files
@@ -124,6 +124,18 @@ if args['verbose']:
 log.info("==========================================================================================")
 
 
+def compute_cosine(output, target):
+    target_vec = torch.flatten(target, start_dim=1, end_dim=3)
+    output_vec = torch.flatten(output, start_dim=1, end_dim=3)
+    cosine_similarity = cos(output_vec, target_vec)  # Calculate loss
+    cosine_loss = 1 - cosine_similarity
+
+    del target_vec
+    del output_vec
+
+    return cosine_similarity, cosine_loss
+
+
 def compute_ssim(output, target):
     ssim_similarity = ssim(output, target)
     ssim_loss = 1 - ssim_similarity
@@ -131,6 +143,7 @@ def compute_ssim(output, target):
 
 
 ssim = StructuralSimilarityIndexMeasure(reduction='elementwise_mean').to(device)
+cos = nn.CosineSimilarity(dim=1, eps=1e-6).to(device)
 l1 = torch.nn.L1Loss(reduction='sum').to(device)
 
 log.info('Setup complete!')
@@ -138,6 +151,7 @@ log.info("======================================================================
 log.info("==========================================================================================")
 
 ssimLoss, ssimSim = [], []
+cosineLoss, cosineSim = [], []
 image_id, dimensions, l1_sum = [], [], []
 
 
@@ -146,7 +160,7 @@ def evaluate():
 
     checkpoint = torch.load(str(args['model_path']), map_location=torch.device(device))
     model.load_state_dict(checkpoint['model_state_dict'])
-    
+
     if args['verbose']:
         log.info("Loading model from supplied model_path: {}".format(str(args['model_path']).replace("\\", '/')))
 
@@ -156,8 +170,8 @@ def evaluate():
     with tqdm(test_loader, unit="sample") as tepoch:
         with torch.no_grad():
             i = 0
-            for data, target, data_index, target_index, data_orig in tepoch:
-                pred_path = Path.joinpath(eval_path, str(data_index[0]).split('.')[0])
+            for data, target, index, data_orig in tepoch:
+                pred_path = Path.joinpath(eval_path, str(index[0]).split('.')[0])
                 pred_path.mkdir(parents=True, exist_ok=True)
 
                 data, data_min, data_max = min_max_01(data)
@@ -168,6 +182,9 @@ def evaluate():
                 tepoch.set_description(f"Evaluating")
                 output = model(data)
 
+                # Compute cosine similarity:
+                cosine_similarity, cosine_loss = compute_cosine(output, target)
+
                 # Compute SSIM
                 ssim_similarity, ssim_loss = compute_ssim(output, target)
 
@@ -177,6 +194,8 @@ def evaluate():
                 l1_sum.append(l1_loss.item())
                 ssimLoss.append(ssim_loss.item())
                 ssimSim.append(ssim_similarity.item())
+                cosineLoss.append(cosine_loss.item())
+                cosineSim.append(cosine_similarity.item())
 
                 data = min_max_revert(data, data_min, data_max)
                 target = min_max_revert(target, target_min, target_max)
@@ -190,12 +209,13 @@ def evaluate():
                               prediction,
                               l1_sum[-1],
                               ssimLoss[-1],
-                              data_index[0],
+                              cosineLoss[-1],
+                              index[0],
                               pred_path)
 
                 i += 1
 
-                image_id.append(str(data_index[0]))
+                image_id.append(str(index[0]))
 
             results = PrettyTable(["L1 Loss",
                                    '|',
@@ -218,7 +238,9 @@ def losses_to_csv(name):
         "Image ID": image_id,
         "L1/MAE": l1_sum,
         "SSIM error": ssimLoss,
-        "SSIM similarity": ssimSim
+        "SSIM similarity": ssimSim,
+        "Cosine error": cosineLoss,
+        "Cosine similarity": cosineSim
     }
     df = DataFrame.from_dict(loss_dict)
     df = df.sort_values(by='L1/MAE', ascending=True)
