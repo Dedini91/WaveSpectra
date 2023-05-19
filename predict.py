@@ -26,9 +26,9 @@ warnings.filterwarnings('ignore', category=UserWarning, message='TypedStorage is
 parser = argparse.ArgumentParser(description="Options for inference")
 
 parser.add_argument("--model_path", action="store", type=str, required=True,
-                    help="path to best trained model .pth file")
+                    help="path to model and optimiser state_dict.pth files")
 parser.add_argument("-d", "--data_path", action="store", type=str, required=True,
-                    help="path to .npz file")
+                    help="path to folder containing source images")
 parser.add_argument("--device", type=str, default='cuda', choices=['cuda', 'cpu'],
                     help="device")
 
@@ -92,7 +92,8 @@ print("=========================================================================
 def predict():
     print("Generating predictions...")
     model = WaveNet()
-    model.load_state_dict(torch.load(str(args['model_path']), map_location=torch.device(device)))
+    checkpoint = torch.load(str(args['model_path']), map_location=torch.device(device))
+    model.load_state_dict(checkpoint['model_state_dict'])
     print("Loading model from supplied model_path: {}".format(str(args['model_path']).replace("\\", '/')))
     model.to(device)
     model.eval()
