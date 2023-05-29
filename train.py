@@ -33,11 +33,11 @@ parser.add_argument("-n", "--name", action="store", type=str, required=True,
 parser.add_argument("-d", "--data", action="store", type=str, required=True,
                     help="path to processed dataset")
 parser.add_argument("--track", action='store', type=str, required=False, default=None,
-                    help="saves all predictions for a specified source image (file name only e.g. 05902)")
+                    help="saves all predictions for a specified source image (file name only e.g. 00178)")
 parser.add_argument("--cache", action="store_true", default=False,
                     help="load complete dataset into RAM")
-parser.add_argument("--outputs", action="store_false", default=True,
-                    help="toggle saving predictions from each train/validation epoch (default True)")
+parser.add_argument("--outputs", action="store_true", default=False,
+                    help="save images from each train/validation epoch")
 parser.add_argument("--num_workers", type=int, default=1,
                     help="number of workers")
 parser.add_argument("--model_path", action="store", type=str, required=False,
@@ -52,7 +52,7 @@ parser.add_argument("-m", "--momentum", type=float, default=0.9,
                     help="momentum for SGD, beta1 for adam")
 parser.add_argument("--decay", type=float, default=0.0,
                     help="weight decay rate (default off)")
-parser.add_argument("-e", "--num-epochs", type=int, default=100
+parser.add_argument("-e", "--num-epochs", type=int, default=20,
                     help="number of epochs")
 parser.add_argument("-b", "--batch-size", type=int, default=1,
                     help="batch size")
@@ -60,7 +60,7 @@ parser.add_argument("--scheduler", action="store", type=str, default='plateau', 
                     help="learning rate scheduler")
 parser.add_argument("--lr", "--learning_rate", type=float, default=0.00001,
                     help="learning rate")
-parser.add_argument("--lr_min", action="store", type=float, default=0.0000001,
+parser.add_argument("--lr_min", action="store", type=float, default=0.000005,
                     help="minimum learning rate for scheduler")
 parser.add_argument("--interval", type=int, default=1,
                     help="model checkpoint interval (epochs)")
@@ -186,7 +186,7 @@ def dataset_info():
         plt.yticks([])
         plt.imshow(y_train_sample[i].squeeze(), cmap="gray")
 
-        plt.suptitle("Example training data (normalised)")
+        plt.suptitle("Example training data")
         plt.savefig(str(filepath) + "/sample_train" + str(i) + ".jpg")
         plt.close()
 
@@ -202,9 +202,12 @@ def dataset_info():
         t1 = PrettyTable([' ', '# pairs', 'Dimensions (x)', 'Dimensions (y)', "# pixels", "Datatype"])
         t1.add_rows(
             [
-                ["Train", str(len(train)), str(list(xtr1.size())), str(list(ytr1.size())), str(getinfo(xtr1)[1]), str(getinfo(xtr1)[2])],
-                ["Validation", str(len(val)), str(list(xva1.size())), str(list(yva1.size())), str(getinfo(xva1)[1]), str(getinfo(xva1)[2])],
-                ["Test", str(len(test)), str(list(xte1.size())), str(list(yte1.size())), str(getinfo(xte1)[1]), str(getinfo(xte1)[2])]
+                ["Train", str(len(train)), str(list(xtr1.size())), str(list(ytr1.size())), str(getinfo(xtr1)[1]),
+                 str(getinfo(xtr1)[2])],
+                ["Validation", str(len(val)), str(list(xva1.size())), str(list(yva1.size())), str(getinfo(xva1)[1]),
+                 str(getinfo(xva1)[2])],
+                ["Test", str(len(test)), str(list(xte1.size())), str(list(yte1.size())), str(getinfo(xte1)[1]),
+                 str(getinfo(xte1)[2])]
             ]
         )
 
@@ -366,6 +369,18 @@ def compute_cosine(output, target):
     return cosine_similarity, cosine_loss
 
 
+def compute_euclidean(output, target):
+    target_vec = torch.flatten(target, start_dim=1, end_dim=3)
+    output_vec = torch.flatten(output, start_dim=1, end_dim=3)
+    temp = target_vec - output_vec
+    distance = torch.sqrt_(torch.sum(torch.sub(output_vec, target_vec) ** 2))
+
+    del target_vec
+    del output_vec
+
+    return distance
+
+
 def compute_ssim(output, target):
     ssim_similarity = ssim(output, target)
     ssim_loss = 1 - ssim_similarity
@@ -452,14 +467,18 @@ def train():
                 # Compute ssim
                 ssim_similarity, ssim_loss = compute_ssim(output, target)
 
+                # Compute Euclidean distance
+                euclidean_distance = compute_euclidean(output, target)
+
                 # Compute l1 loss
                 l1_loss = l1(output, target) / args['batch_size']
 
-                if not add_l1:
-                    loss = cosine_loss + ssim_loss
-                    l1_loss.detach()
-                else:
-                    loss = cosine_loss + ssim_loss + (l1_loss * 0.1)
+                # if not add_l1:
+                #     loss = cosine_loss + ssim_loss
+                #     l1_loss.detach()
+                # else:
+                #     loss = cosine_loss + ssim_loss + (l1_loss_scaled * 0.1)
+                loss = cosine_loss + ssim_loss + euclidean_distance
 
                 training_loss += loss.detach().item()
                 l1_training_loss += l1_loss.detach().item()
@@ -550,24 +569,24 @@ def train():
                     optimizer.zero_grad()
                     output = network(data)
 
-                    # Normalise output to same range as target
-                    # target_min, target_max = target.min(), target.max()
-                    # output = (output * (target_max - target_min)) + target_min
-
                     # Compute cosine similarity:
                     cosine_similarity, cosine_loss = compute_cosine(output, target)
 
                     # Compute ssim
                     ssim_similarity, ssim_loss = compute_ssim(output, target)
 
+                    # Compute Euclidean distance
+                    euclidean_distance = compute_euclidean(output, target)
+
                     # Compute l1 loss
                     l1_loss = l1(output, target) / args['batch_size']
 
-                    if not add_l1:
-                        loss = cosine_loss + ssim_loss
-                        l1_loss.detach()
-                    else:
-                        loss = cosine_loss + ssim_loss + (l1_loss * 0.1)
+                    # if not add_l1:
+                    #     loss = cosine_loss + ssim_loss
+                    #     l1_loss.detach()
+                    # else:
+                    #     loss = cosine_loss + ssim_loss + (l1_loss_scaled * 0.1)
+                    loss = cosine_loss + ssim_loss + euclidean_distance
 
                     validation_loss += loss.item()
                     l1_validation_loss += l1_loss.item()
@@ -586,7 +605,7 @@ def train():
                         ssimSim.append(torch.Tensor.tolist(ssim_similarity))
                         cosineSim.append(torch.Tensor.tolist(cosine_similarity[0]))
 
-                    iters += 1  # for calculating means across validation iterations
+                    iters += 1
 
             prediction = output.detach().cpu().numpy().squeeze()
 
@@ -720,18 +739,18 @@ def train():
     log.info("\n\nTraining complete!\n")
 
     log.info("Best training loss:\t{:.6f}\n"
-             "Best validation loss:\t{:.6f}\n"
+             "Best training loss:\t{:.6f}\n"
              "Best l1 loss:\t\t{:.6f}\n"
              "Best cosine loss:\t{:.6f}\n"
              "Best cosine similarity:\t{:.6f}\n"
              "Best SSIM loss:\t\t{:.6f}\n"
              "Best SSIM similarity:\t{:.6f}\n".format(min(training_losses),
-                                                      min(validation_losses),
-                                                      min(l1_validation_losses),
-                                                      min(cosine_validation_losses),
-                                                      max(cosine_validation_similarities),
-                                                      min(ssim_validation_losses),
-                                                      max(ssim_validation_similarities)))
+                                                      min(training_losses),
+                                                      min(l1_training_losses),
+                                                      min(cosine_training_losses),
+                                                      max(cosine_training_similarities),
+                                                      min(ssim_training_losses),
+                                                      max(ssim_training_similarities)))
     log.info("==========================================================================================\n")
 
     return None
@@ -752,11 +771,11 @@ def evaluate():
         model.load_state_dict(eval_checkpoint['model_state_dict'])
         if args['verbose']:
             log.info("model_path not supplied - loading : {}/best.pth".format(str(model_path).replace('\\', '/')))
-    elif args['model_path'] is not None and args['resume']:     # Model path specified, resume True: Use *non-argparse
+    elif args['model_path'] is not None and args['resume']:  # Model path specified, resume True: Use *non-argparse
         eval_checkpoint = torch.load(str(model_path) + "/best.pth")
         model.load_state_dict(checkpoint['model_state_dict'])
         log.info("Training resumed from previous - loading : {}/best.pth".format(str(model_path).replace('\\', '/')))
-    else:   # Model path specified, resume False: Use arg['model_path']
+    else:  # Model path specified, resume False: Use arg['model_path']
         eval_checkpoint = torch.load(str(args['model_path']))
         model.load_state_dict(checkpoint['model_state_dict'])
         if args['verbose']:
@@ -827,7 +846,7 @@ def losses_to_csv(name):
 
 # Execute program
 train()
-losses_to_csv('results_validation')
+losses_to_csv('results_training')
 
 if args['num_epochs'] > 1:
     plot_final_losses(metrics_path, training_losses, validation_losses, l1_start_epoch)
