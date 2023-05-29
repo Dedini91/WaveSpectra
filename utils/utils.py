@@ -22,6 +22,7 @@ def getinfo(img):
 def init_layers(m):
     if isinstance(m, nn.Conv2d):
         torch.nn.init.kaiming_uniform_(m.weight)
+        # torch.nn.init.constant_(m.weight, 0.001)
         torch.nn.init.zeros_(m.bias)
     return None
 
@@ -153,7 +154,7 @@ def save_examples(x_data, y_data, z_data, mode, epoch, filename, root_path, batc
     return None
 
 
-def save_inference(x_data, y_data, z_data, loss1, ssim, filename, root_path):
+def save_inference(x_data, y_data, z_data, loss1, ssim, cosine, filename, root_path):
     plt.subplot(2, 3, (1, 4))
     plt.title("Source")
     plt.xticks([])
@@ -175,7 +176,9 @@ def save_inference(x_data, y_data, z_data, loss1, ssim, filename, root_path):
     plt.suptitle("Evaluation:\nL1(MAE): "
                  + str(round(loss1, 4))
                  + "/SSIM: "
-                 + str(round(ssim, 4)))
+                 + str(round(ssim, 4))
+                 + "/Cosine: "
+                 + str(round(cosine, 4)))
 
     plt.savefig(str(root_path) + "/predictions/evaluation/" + str(filename[0]))
     plt.close()
@@ -183,7 +186,7 @@ def save_inference(x_data, y_data, z_data, loss1, ssim, filename, root_path):
     return None
 
 
-def save_eval(x_data, y_data, z_data, loss1, ssim, filename, root_path):
+def save_eval(x_data, y_data, z_data, loss1, ssim, cosine, filename, root_path):
     plt.imshow(x_data[:, :], cmap='gray')
     plt.axis('off')
     plt.tight_layout()
@@ -223,7 +226,9 @@ def save_eval(x_data, y_data, z_data, loss1, ssim, filename, root_path):
     plt.suptitle("Evaluation:\nL1(MAE): "
                  + str(round(loss1, 4))
                  + "/SSIM: "
-                 + str(round(ssim, 4)))
+                 + str(round(ssim, 4))
+                 + "/Cosine: "
+                 + str(round(cosine, 4)))
 
     plt.savefig(str(root_path) + "/" + str(filename).split(".")[0] + "_comp.jpg")
     plt.close()
